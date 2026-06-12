@@ -191,7 +191,7 @@ def conciliar(df_prev, df_banco, limite_alerta=1500.0):
         for ib,v in extras:
             if acum+v<=pv*1.20: sel_e.append(ib); acum+=v
         if not sel_e: continue
-tml=round(acum,2)
+        tf=round(acum,2)
         if abs(tf-pv)/max(pv,1)<=0.20:
             atrib_enr[ip]=(ibp,sel_e,tf)
             for ib in sel_e: usados_banco.add(ib)
