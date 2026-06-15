@@ -31,7 +31,14 @@ def _eh_col_valor(c):
     return any(p in c for p in ("vlr. nom", "vlr.nom", "valor nom", "vlr. tot", "vlr.tot", "valor tot", "vlr.total", "valor total"))
 
 def _eh_col_data(c):
-    return any(p in c for p in ("data pag", "vencimento", "emiss", "data liq")) or c == "data"
+    return any(p in c for p in ("data pag", "vencimento", "data liq")) or c == "data"
+
+def _prioridade_data(c):
+    """Menor número = maior prioridade."""
+    if "data pag" in c or "data liq" in c: return 0
+    if "vencimento" in c: return 1
+    if c == "data": return 2
+    return 99
 
 def ler_planilha_sistema(caminho: Union[str, Path]) -> pd.DataFrame:
     caminho = Path(caminho)
@@ -61,8 +68,13 @@ def _ler_aba(ws) -> pd.DataFrame | None:
         # precisa ter ao menos data+beneficiário OU data+valor para ser cabeçalho
         if tem_data and (tem_benef or tem_valor):
             header_row = i
+            melhor_prio = 99
             for j, c in enumerate(rs):
-                if _eh_col_data(c) and col_data is None:   col_data  = j
+                if _eh_col_data(c):
+                    p = _prioridade_data(c)
+                    if p < melhor_prio:
+                        col_data = j
+                        melhor_prio = p
                 if _eh_col_beneficiario(c) and col_benef is None: col_benef = j
                 if _eh_col_valor(c) and col_valor is None: col_valor = j
                 if ("título" in c or "titulo" in c) and col_doc is None: col_doc = j
