@@ -6,11 +6,14 @@ import openpyxl
 import pandas as pd
 
 _RE_PREFIXO = re.compile(r"^\d+\s*-\s*")
+_RE_CNPJ_CPF = re.compile(r"^[\d]{2,3}[.\d/\-]{5,18}\s+")
 _RODAPE = {"total do dia", "t o t a l g e r a l", "total geral"}
 
 def _limpar_nome(v):
     s = str(v).strip() if v else ""
-    return _RE_PREFIXO.sub("", s).strip()
+    s = _RE_PREFIXO.sub("", s).strip()
+    s = _RE_CNPJ_CPF.sub("", s).strip()
+    return s
 
 def _limpar_valor(v):
     if v is None: return 0.0
@@ -23,8 +26,9 @@ def _limpar_valor(v):
     except: return 0.0
 
 def _eh_col_beneficiario(c):
-    """Detecta coluna de beneficiário: Terceiro, Cliente, Favorecido etc."""
-    return any(p in c for p in ("terceiro", "cliente", "favorecido", "benefici"))
+    """Detecta coluna de beneficiário: Terceiro, Cliente, 'C l i e n t e', Favorecido etc."""
+    cc = c.replace(" ", "")  # trata "C l i e n t e" → "cliente"
+    return any(p in cc for p in ("terceiro", "cliente", "favorecido", "benefici"))
 
 def _eh_col_valor(c):
     """Detecta coluna de valor: Vlr. Nom, Vlr.Total, Valor Nom, Valor Total etc."""
