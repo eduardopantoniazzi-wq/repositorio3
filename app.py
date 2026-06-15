@@ -382,9 +382,48 @@ with pd.ExcelWriter(buf,engine="openpyxl") as w:
     df_res[df_res["Status"].str.startswith("⚠️")].to_excel(w,sheet_name="Divergências",index=False)
     df_banco.to_excel(w,sheet_name="Extrato Consolidado",index=False)
 import openpyxl as _ox; buf.seek(0); _wb=_ox.load_workbook(buf)
-from openpyxl.styles import PatternFill,Font,Alignment
+from openpyxl.styles import PatternFill,Font,Alignment,Border,Side
+_COR_FILL={
+    "✅":("D4EDDA","155724"),"⚠️":("FFF3CD","856404"),
+    "🚨":("F8D7DA","721C24"),"🕐":("E2E3E5","383D41"),
+}
+_thin=Side(style="thin",color="CCCCCC")
+_borda=Border(bottom=_thin)
+_larguras={"Status":22,"🔴 Alerta":32,"Data Sist.":12,"Previsto (Sistema)":30,
+           "Vlr Sistema":14,"Data Pago":12,"Banco":12,"Pago Para":30,
+           "Vlr Pago":14,"Diferença R$":14,"Diferença %":12}
 for ws_ in _wb.worksheets:
-    for cell in ws_[1]: cell.font=Font(bold=True,color="FFFFFF"); cell.fill=PatternFill("solid",fgColor="2C3E50")
+    # cabeçalho
+    for cell in ws_[1]:
+        cell.font=Font(bold=True,color="FFFFFF")
+        cell.fill=PatternFill("solid",fgColor="2C3E50")
+        cell.alignment=Alignment(horizontal="center",vertical="center",wrap_text=True)
+    ws_.row_dimensions[1].height=22
     ws_.freeze_panes="A2"
+    # larguras das colunas
+    for idx,col in enumerate(ws_.iter_cols(min_row=1,max_row=1),1):
+        titulo=str(col[0].value or "")
+        larg=_larguras.get(titulo,None)
+        if larg: ws_.column_dimensions[col[0].column_letter].width=larg
+        else:
+            max_l=max((len(str(c.value or "")) for c in ws_[col[0].column_letter]),default=10)
+            ws_.column_dimensions[col[0].column_letter].width=min(max(max_l+2,10),40)
+    # cores das linhas (só na aba Comparativo)
+    if ws_.title=="Comparativo":
+        status_col=None
+        for cell in ws_[1]:
+            if str(cell.value or "").strip()=="Status": status_col=cell.column; break
+        if status_col:
+            for row in ws_.iter_rows(min_row=2):
+                st_val=str(row[status_col-1].value or "")
+                fill_hex=font_hex=None
+                for prefix,(bg,fg) in _COR_FILL.items():
+                    if st_val.startswith(prefix): fill_hex=bg; font_hex=fg; break
+                for cell in row:
+                    if fill_hex:
+                        cell.fill=PatternFill("solid",fgColor=fill_hex)
+                        cell.font=Font(color=font_hex)
+                    cell.border=_borda
+                    cell.alignment=Alignment(vertical="center")
 buf2=io.BytesIO(); _wb.save(buf2)
 st.download_button("📥 Baixar Excel",data=buf2.getvalue(),file_name=f"comparativo_sistema_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",use_container_width=True)
