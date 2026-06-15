@@ -31,7 +31,7 @@ def _eh_col_valor(c):
     return any(p in c for p in ("vlr. nom", "vlr.nom", "valor nom", "vlr. tot", "vlr.tot", "valor tot", "vlr.total", "valor total"))
 
 def _eh_col_data(c):
-    return "data pag" in c or c == "data"
+    return any(p in c for p in ("data pag", "vencimento", "emiss", "data liq")) or c == "data"
 
 def ler_planilha_sistema(caminho: Union[str, Path]) -> pd.DataFrame:
     caminho = Path(caminho)
