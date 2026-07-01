@@ -938,7 +938,7 @@ function parseWorkbookRows(rows){
 
 let pendingImport = null;
 
-function renderImportPreview(stats, stock, monthly, fileName){
+function renderImportPreview(stats, stock, monthly, fileName, sheetName){
   const el = document.getElementById("importPreview");
   el.style.display = "block";
   const totalStockQtd = stock.reduce((s,r)=>s+r.qtd,0);
@@ -946,6 +946,7 @@ function renderImportPreview(stats, stock, monthly, fileName){
     <div class="import-preview-box">
       <h3>Prévia da importação — ${fileName}</h3>
       <div class="import-stats-grid">
+        <div><span class="lbl">Aba lida</span><span class="val">${sheetName || "-"}</span></div>
         <div><span class="lbl">Linhas lidas</span><span class="val">${fmtInt(stats.linhasLidas)}</span></div>
         <div><span class="lbl">Período coberto</span><span class="val">${stats.mesMin?fmtMes(stats.mesMin):"-"} a ${stats.mesMax?fmtMes(stats.mesMax):"-"}</span></div>
         <div><span class="lbl">Saída · Não Retorna (vira estoque)</span><span class="val">${fmtInt(stats.saidaNaoRetorna)} linhas · ${fmtInt(stats.saidaNaoRetornaQtd)} pallets</span></div>
@@ -1017,21 +1018,51 @@ function renderImportStatusAtual(){
   }
 }
 
+const PLANILHA_ABA_PREFERIDA = "BD_Movimento_Estoque";
+
+function canonSheetName(s){
+  return norm(s).replace(/[\s_]+/g, "");
+}
+
+function pickSheetName(wb){
+  const exact = wb.SheetNames.find(n => canonSheetName(n) === canonSheetName(PLANILHA_ABA_PREFERIDA));
+  if(exact) return exact;
+
+  const partial = wb.SheetNames.find(n => { const c = norm(n); return c.includes("movimento") && c.includes("estoque"); });
+  if(partial) return partial;
+
+  for(const name of wb.SheetNames){
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], {header:1, defval:""});
+    if(rows.length && rows[0]){
+      const header = rows[0];
+      const hasTipo = findColIndex(header, ["tipo de movimento","tipo"]) !== -1;
+      const hasStatus = findColIndex(header, ["status"]) !== -1;
+      const hasMotivo = findColIndex(header, ["motivo"]) !== -1;
+      if(hasTipo && hasStatus && hasMotivo) return name;
+    }
+  }
+
+  return wb.SheetNames[0];
+}
+
 document.getElementById("importFile").addEventListener("change", (e)=>{
   const file = e.target.files[0];
   if(!file) return;
   const reader = new FileReader();
   reader.onload = (ev)=>{
+    let sheetName = null;
     try{
       const data = new Uint8Array(ev.target.result);
       const wb = XLSX.read(data, {type:"array", cellDates:true});
-      const ws = wb.Sheets[wb.SheetNames[0]];
+      sheetName = pickSheetName(wb);
+      const ws = wb.Sheets[sheetName];
       const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:""});
       const result = parseWorkbookRows(rows);
       pendingImport = {stock: result.stock, monthly: result.monthly, fileName: file.name};
-      renderImportPreview(result.stats, result.stock, result.monthly, file.name);
+      renderImportPreview(result.stats, result.stock, result.monthly, file.name, sheetName);
     }catch(err){
-      renderImportError(err.message || String(err));
+      const msg = (err.message || String(err)) + (sheetName ? ` (aba lida: "${sheetName}")` : "");
+      renderImportError(msg);
     }
   };
   reader.onerror = ()=> renderImportError("Não foi possível ler o arquivo.");
