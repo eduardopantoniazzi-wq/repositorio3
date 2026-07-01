@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Controle de Pallets Não Retornados — Antoniazzi Alimentos</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root{
@@ -15,12 +14,9 @@
     --muted:#64748b;
     --primary:#1d4ed8;
     --primary-light:#dbeafe;
-    --primary-dark:#1e3a8a;
-    --st-aberto:#3b82f6;
-    --st-contatado:#eab308;
-    --st-negociando:#f97316;
-    --st-vendido:#16a34a;
-    --st-perdido:#dc2626;
+    --red:#dc2626;
+    --red-light:#fee2e2;
+    --green:#16a34a;
     --radius:10px;
   }
   *{box-sizing:border-box;}
@@ -48,417 +44,184 @@
     color:#c7d7fb;
     font-size:13px;
   }
-  nav.tabs{
-    display:flex;
-    gap:4px;
-    background:var(--card);
-    border-bottom:1px solid var(--border);
-    padding:0 28px;
-    position:sticky;
-    top:0;
-    z-index:50;
-    box-shadow:0 1px 3px rgba(0,0,0,.04);
-  }
-  nav.tabs button{
-    appearance:none;
-    border:none;
-    background:transparent;
-    padding:14px 18px;
-    font-size:14px;
-    font-weight:600;
-    color:var(--muted);
-    cursor:pointer;
-    border-bottom:3px solid transparent;
-    transition:.15s;
-  }
-  nav.tabs button:hover{ color:var(--primary); }
-  nav.tabs button.active{
-    color:var(--primary);
-    border-bottom-color:var(--primary);
-  }
   main{
-    max-width:1280px;
+    max-width:1100px;
     margin:0 auto;
-    padding:24px 28px 60px;
+    padding:32px 28px 60px;
   }
-  .tab-panel{ display:none; }
-  .tab-panel.active{ display:block; animation:fadein .18s ease; }
-  @keyframes fadein{ from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);} }
-
-  .kpi-grid{
-    display:grid;
-    grid-template-columns:repeat(4,1fr);
-    gap:16px;
-    margin-bottom:24px;
-  }
-  .kpi-card{
-    background:var(--card);
-    border:1px solid var(--border);
-    border-radius:var(--radius);
-    padding:18px 20px;
-    box-shadow:0 1px 2px rgba(0,0,0,.03);
-  }
-  .kpi-card .kpi-label{
-    font-size:12px;
-    text-transform:uppercase;
-    letter-spacing:.5px;
-    color:var(--muted);
-    font-weight:600;
-    margin-bottom:8px;
-  }
-  .kpi-card .kpi-value{
-    font-size:24px;
-    font-weight:700;
-    color:var(--text);
-  }
-  .kpi-card .kpi-sub{
-    margin-top:4px;
-    font-size:12px;
-    color:var(--muted);
-  }
-  .kpi-card.accent-blue .kpi-value{ color:var(--primary); }
-  .kpi-card.accent-green .kpi-value{ color:var(--st-vendido); }
-  .kpi-card.accent-orange .kpi-value{ color:var(--st-negociando); }
+  .hidden{ display:none !important; }
 
   .card{
     background:var(--card);
     border:1px solid var(--border);
     border-radius:var(--radius);
-    padding:20px;
-    margin-bottom:24px;
+    padding:22px 24px;
+    margin-bottom:20px;
     box-shadow:0 1px 2px rgba(0,0,0,.03);
   }
-  .card h2{
-    margin:0 0 4px 0;
-    font-size:16px;
-    font-weight:700;
+  .card h2{ margin:0 0 4px 0; font-size:16px; font-weight:700; }
+  .card .card-sub{ margin:0 0 16px 0; font-size:12.5px; color:var(--muted); }
+
+  /* Upload */
+  .upload-card{ text-align:center; padding:44px 24px; }
+  .upload-card h2{ font-size:19px; text-align:center; }
+  .upload-card .card-sub{ text-align:center; max-width:520px; margin-left:auto; margin-right:auto; }
+  .upload-drop{
+    display:flex; flex-direction:column; align-items:center; gap:10px;
+    border:2px dashed #94a3b8; border-radius:12px; padding:40px 24px; margin:20px auto 0; max-width:420px;
+    cursor:pointer; transition:.15s; background:#f8fafc;
   }
-  .card .card-sub{
-    margin:0 0 16px 0;
-    font-size:12.5px;
-    color:var(--muted);
-  }
-  .grid-2col{
-    display:grid;
-    grid-template-columns:1.1fr .9fr;
-    gap:20px;
-    align-items:start;
+  .upload-drop:hover, .upload-drop.dragover{ border-color:var(--primary); background:var(--primary-light); }
+  .upload-drop .upload-icon{ font-size:34px; }
+  .upload-drop .upload-text{ font-weight:600; }
+  .upload-drop .upload-hint{ font-size:12px; color:var(--muted); }
+  #uploadStatus{ max-width:520px; margin:18px auto 0; }
+  .upload-error{
+    background:var(--red-light); border:1px solid #fecaca; color:#991b1b;
+    border-radius:8px; padding:12px 16px; font-size:13px; text-align:left;
   }
 
-  table{
-    width:100%;
-    border-collapse:collapse;
-    font-size:13px;
+  /* Report toolbar */
+  .report-toolbar{
+    display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:16px;
+    margin-bottom:20px;
   }
-  thead th{
-    text-align:left;
-    background:#f8fafc;
-    color:var(--muted);
-    font-weight:600;
-    font-size:11.5px;
-    text-transform:uppercase;
-    letter-spacing:.4px;
-    padding:10px 12px;
-    border-bottom:1px solid var(--border);
-    white-space:nowrap;
+  .file-chip{
+    display:inline-block; background:#eef2ff; color:#3730a3; border:1px solid #c7d2fe;
+    border-radius:999px; padding:6px 14px; font-size:12.5px; font-weight:600; margin-bottom:6px;
   }
-  tbody td{
-    padding:9px 12px;
-    border-bottom:1px solid #eef1f5;
-    vertical-align:middle;
-  }
-  tbody tr:hover{ background:#f8fafc; }
-  tfoot td{
-    padding:10px 12px;
-    font-weight:700;
-    background:#f8fafc;
-    border-top:2px solid var(--border);
-  }
-  .num{ text-align:right; font-variant-numeric:tabular-nums; }
-  .table-scroll{ overflow-x:auto; }
-
-  .filters-bar{
-    display:flex;
-    flex-wrap:wrap;
-    gap:14px;
-    align-items:flex-end;
-    margin-bottom:16px;
-  }
+  .file-meta{ font-size:12px; color:var(--muted); }
+  .period-fields{ display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; }
   .filter-field{ display:flex; flex-direction:column; gap:4px; }
   .filter-field label{ font-size:11.5px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.4px; }
-  select, input[type=number], input[type=text], input[type=date], textarea{
-    border:1px solid var(--border);
-    border-radius:6px;
-    padding:7px 10px;
-    font-size:13px;
-    color:var(--text);
-    background:#fff;
-    font-family:inherit;
+  input[type=date]{
+    border:1px solid var(--border); border-radius:6px; padding:7px 10px; font-size:13px;
+    color:var(--text); background:#fff; font-family:inherit;
   }
-  select:focus, input:focus, textarea:focus{ outline:2px solid var(--primary-light); border-color:var(--primary); }
+  input[type=date]:focus{ outline:2px solid var(--primary-light); border-color:var(--primary); }
 
   button.btn{
-    appearance:none;
-    border:1px solid var(--border);
-    background:#fff;
-    color:var(--text);
-    padding:8px 14px;
-    border-radius:6px;
-    font-size:13px;
-    font-weight:600;
-    cursor:pointer;
-    transition:.15s;
+    appearance:none; border:1px solid var(--border); background:#fff; color:var(--text);
+    padding:8px 14px; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; transition:.15s;
   }
   button.btn:hover{ background:#f1f5f9; }
   button.btn-primary{ background:var(--primary); border-color:var(--primary); color:#fff; }
   button.btn-primary:hover{ background:#1a44b8; }
-  button.btn-sm{ padding:5px 10px; font-size:12px; }
 
-  .status-badge{
-    display:inline-flex;
-    align-items:center;
-    gap:5px;
-    padding:3px 9px;
-    border-radius:999px;
-    font-size:12px;
-    font-weight:600;
-    white-space:nowrap;
+  .kpi-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:20px; }
+  .kpi-card{
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:18px 20px; box-shadow:0 1px 2px rgba(0,0,0,.03);
   }
-  .status-select{ min-width:150px; font-weight:600; }
-  .status-aberto{ background:#dbeafe; color:#1d4ed8; }
-  .status-contatado{ background:#fef9c3; color:#854d0e; }
-  .status-negociando{ background:#ffedd5; color:#9a3412; }
-  .status-vendido{ background:#dcfce7; color:#166534; }
-  .status-perdido{ background:#fee2e2; color:#991b1b; }
+  .kpi-card .kpi-label{
+    font-size:12px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); font-weight:600; margin-bottom:8px;
+  }
+  .kpi-card .kpi-value{ font-size:26px; font-weight:700; color:var(--text); }
+  .kpi-card .kpi-sub{ margin-top:4px; font-size:12px; color:var(--muted); }
+  .kpi-card.accent-primary .kpi-value{ color:var(--primary); }
+  .kpi-card.accent-red .kpi-value{ color:var(--red); }
 
-  .obs-input{ width:220px; }
+  .card-header-row{ display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px; margin-bottom:2px; }
 
-  /* Mapa hex */
-  .map-wrap{ display:flex; gap:24px; align-items:flex-start; flex-wrap:wrap; }
-  #brMap{ flex:0 0 auto; }
-  .hex{ cursor:default; stroke:#fff; stroke-width:1.5; transition:opacity .15s; }
-  .hex.has-data{ cursor:pointer; }
-  .hex.has-data:hover{ opacity:.78; }
-  .hex-label{ font-size:9.5px; font-weight:700; fill:#1e293b; pointer-events:none; text-anchor:middle; dominant-baseline:middle; }
-  .hex-label.light{ fill:#f8fafc; }
-  .map-legend{ min-width:220px; }
-  .map-legend h3{ font-size:13px; margin:0 0 10px 0; }
-  .legend-scale{ height:12px; border-radius:6px; background:linear-gradient(90deg,#dbeafe,#1e3a8a); margin-bottom:4px; }
-  .legend-labels{ display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-bottom:16px; }
-  .legend-list{ list-style:none; margin:0; padding:0; font-size:12.5px; }
-  .legend-list li{ display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid #eef1f5; cursor:pointer; }
-  .legend-list li:hover{ color:var(--primary); }
-  .legend-list .swatch{ display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:6px; vertical-align:middle; }
-  #mapTooltip{
-    position:fixed; pointer-events:none; background:#0f2557; color:#fff; padding:8px 11px;
-    border-radius:6px; font-size:12px; z-index:999; display:none; box-shadow:0 4px 14px rgba(0,0,0,.25);
-    max-width:220px;
+  table{ width:100%; border-collapse:collapse; font-size:13px; }
+  thead th{
+    text-align:left; background:#f8fafc; color:var(--muted); font-weight:600; font-size:11.5px;
+    text-transform:uppercase; letter-spacing:.4px; padding:10px 12px; border-bottom:1px solid var(--border); white-space:nowrap;
   }
-  #mapTooltip b{ display:block; margin-bottom:3px; font-size:12.5px; }
-
-  /* Modal */
-  .modal-overlay{
-    display:none; position:fixed; inset:0; background:rgba(15,23,42,.5);
-    align-items:center; justify-content:center; z-index:200;
-  }
-  .modal-overlay.open{ display:flex; }
-  .modal-box{
-    background:#fff; border-radius:12px; padding:24px; width:380px; max-width:92vw;
-    box-shadow:0 20px 60px rgba(0,0,0,.3);
-  }
-  .modal-box h3{ margin:0 0 14px 0; font-size:16px; }
-  .modal-box .field{ margin-bottom:14px; display:flex; flex-direction:column; gap:5px; }
-  .modal-box .field label{ font-size:12.5px; font-weight:600; color:var(--muted); }
-  .modal-box .field input{ width:100%; }
-  .modal-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:18px; }
-
-  .price-config{
-    display:flex; align-items:center; gap:10px; margin-bottom:18px;
-    background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:12px 16px; width:fit-content;
-  }
-  .price-config label{ font-weight:600; font-size:13px; }
-  .price-config input{ width:110px; font-weight:700; color:var(--primary); }
-
-  /* Aba 3 */
-  .state-summary{ display:flex; gap:28px; margin-bottom:20px; }
-  .state-summary .box{ background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:14px 20px; }
-  .state-summary .box .lbl{ font-size:11.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.4px; font-weight:600;}
-  .state-summary .box .val{ font-size:20px; font-weight:700; margin-top:4px; }
-  .query-list{ display:flex; flex-direction:column; gap:10px; margin-bottom:22px; }
-  .query-item{
-    display:flex; align-items:center; justify-content:space-between; gap:12px;
-    background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:10px 14px;
-  }
-  .query-item code{ font-size:12.5px; color:var(--text); background:none; }
-  .query-item .actions{ display:flex; gap:8px; flex:0 0 auto; }
-  .contact-form{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; align-items:flex-end; }
-  .contact-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
-  .contact-list li{
-    background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:10px 14px;
-    display:flex; justify-content:space-between; align-items:flex-start; gap:12px;
-  }
-  .contact-list .c-info b{ display:block; }
-  .contact-list .c-info span{ color:var(--muted); font-size:12.5px; }
-  .contact-list .c-meta{ font-size:11px; color:var(--muted); margin-top:2px; }
-
-  .chart-wrap{ height:320px; position:relative; }
+  tbody td{ padding:9px 12px; border-bottom:1px solid #eef1f5; vertical-align:middle; }
+  tbody tr:hover{ background:#f8fafc; }
+  tfoot td{ padding:10px 12px; font-weight:700; background:#f8fafc; border-top:2px solid var(--border); }
+  .num{ text-align:right; font-variant-numeric:tabular-nums; }
+  .table-scroll{ overflow-x:auto; }
   .empty-note{ color:var(--muted); font-size:13px; padding:20px; text-align:center; }
-
-  /* Aba 5 - Importar */
-  .import-status-box{ margin-bottom:18px; }
-  .import-status-active, .import-status-demo{
-    display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;
-    padding:12px 16px; border-radius:8px; font-size:13px;
-  }
-  .import-status-active{ background:#dcfce7; border:1px solid #86efac; color:#166534; }
-  .import-status-demo{ background:#fef9c3; border:1px solid #fde68a; color:#854d0e; }
-  .import-rules{ background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:14px 18px; margin-bottom:6px; }
-  .import-rules h3{ font-size:13px; margin:0 0 8px; }
-  .import-rules ul{ margin:0 0 10px; padding-left:18px; font-size:12.5px; }
-  .import-rules li{ margin-bottom:4px; }
-  .import-preview-box{ background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:16px 18px; }
-  .import-preview-box h3{ margin:0 0 12px; font-size:14px; }
-  .import-preview-box.import-error{ background:#fee2e2; border-color:#fecaca; color:#991b1b; }
-  .import-stats-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:10px 24px; }
-  .import-stats-grid > div{ display:flex; justify-content:space-between; font-size:12.5px; border-bottom:1px solid #eef1f5; padding-bottom:6px; }
-  .import-stats-grid .lbl{ color:var(--muted); }
-  .import-stats-grid .val{ font-weight:700; }
 </style>
 </head>
 <body>
 
 <header class="app-header">
   <h1>Controle de Pallets Não Retornados</h1>
-  <p>Antoniazzi Alimentos · Moagem de Trigo · RS — painel de gestão de estoque de pallets em campo</p>
+  <p>Antoniazzi Alimentos · Moagem de Trigo · RS — envie a planilha, escolha o período e veja quanto entrou, quanto saiu e para onde foram os pallets que não voltaram.</p>
 </header>
-
-<nav class="tabs">
-  <button class="tab-btn active" data-tab="visao-geral">Visão Geral</button>
-  <button class="tab-btn" data-tab="estoque">Estoque Disponível</button>
-  <button class="tab-btn" data-tab="compradores">Busca de Compradores</button>
-  <button class="tab-btn" data-tab="resumo">Resumo Mensal</button>
-  <button class="tab-btn" data-tab="importar">Importar Dados</button>
-</nav>
 
 <main>
 
-  <!-- ABA 1 -->
-  <section id="tab-visao-geral" class="tab-panel active">
-    <div class="kpi-grid">
-      <div class="kpi-card accent-blue">
-        <div class="kpi-label">Total em campo</div>
-        <div class="kpi-value" id="kpiTotalCampo">-</div>
-        <div class="kpi-sub">pallets não retornados acumulados</div>
-      </div>
-      <div class="kpi-card accent-blue">
-        <div class="kpi-label">Valor potencial de venda</div>
-        <div class="kpi-value" id="kpiValorPotencial">-</div>
-        <div class="kpi-sub" id="kpiValorPotencialSub">ao preço padrão configurado</div>
-      </div>
-      <div class="kpi-card accent-green">
-        <div class="kpi-label">Já vendido</div>
-        <div class="kpi-value" id="kpiJaVendido">-</div>
-        <div class="kpi-sub" id="kpiJaVendidoSub">0 pallets negociados</div>
-      </div>
-      <div class="kpi-card accent-orange">
-        <div class="kpi-label">Custo de reposição mensal médio</div>
-        <div class="kpi-value" id="kpiCustoReposicao">-</div>
-        <div class="kpi-sub" id="kpiCustoReposicaoSub">compras médias × R$32/pallet</div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
-        <div>
-          <h2>Saídas vs. Não Retorna vs. Compras (mensal)</h2>
-          <p class="card-sub">Volume de pallets que saem, quanto não retorna, e quanto é comprado para repor o que se perde.</p>
-        </div>
-        <div class="filter-field">
-          <label for="periodoFiltroChart">Período</label>
-          <select id="periodoFiltroChart">
-            <option value="1">Último mês</option>
-            <option value="3">Últimos 3 meses</option>
-            <option value="6">Últimos 6 meses</option>
-            <option value="12">Últimos 12 meses</option>
-            <option value="all">Todo o período</option>
-          </select>
-        </div>
-      </div>
-      <div class="chart-wrap"><canvas id="monthlyChart"></canvas></div>
-    </div>
-
-    <div class="card">
-      <h2>Mapa de concentração de pallets em campo</h2>
-      <p class="card-sub">Cartograma esquemático do Brasil por hexágonos — quanto mais escuro, maior o volume parado no estado. Clique em um estado para filtrar a aba de Estoque.</p>
-      <div class="map-wrap">
-        <svg id="brMap" width="480" height="500" viewBox="0 0 480 500"></svg>
-        <div class="map-legend">
-          <h3>Escala de concentração</h3>
-          <div class="legend-scale"></div>
-          <div class="legend-labels"><span>menor</span><span>maior</span></div>
-          <h3>Estados com pallets em campo</h3>
-          <ul class="legend-list" id="legendList"></ul>
-        </div>
-      </div>
-    </div>
+  <section id="screenUpload" class="card upload-card">
+    <h2>Importar planilha de controle de pallets</h2>
+    <p class="card-sub">Selecione o arquivo .xlsx da planilha de controle. O app lê automaticamente a aba <b>BD_Movimento_Estoque</b>.</p>
+    <label class="upload-drop" for="fileInput" id="uploadDrop">
+      <span class="upload-icon">📄</span>
+      <span class="upload-text">Clique para escolher o arquivo .xlsx</span>
+      <span class="upload-hint">ou arraste o arquivo aqui</span>
+    </label>
+    <input type="file" id="fileInput" accept=".xlsx,.xls" class="hidden">
+    <div id="uploadStatus"></div>
   </section>
 
-  <!-- ABA 2 -->
-  <section id="tab-estoque" class="tab-panel">
+  <section id="screenReport" class="hidden">
+    <div class="report-toolbar">
+      <div>
+        <div class="file-chip" id="fileChip"></div>
+        <div class="file-meta" id="fileMeta"></div>
+      </div>
+      <div class="period-fields">
+        <div class="filter-field">
+          <label for="dataDe">De</label>
+          <input type="date" id="dataDe">
+        </div>
+        <div class="filter-field">
+          <label for="dataAte">Até</label>
+          <input type="date" id="dataAte">
+        </div>
+        <button class="btn" id="btnPeriodoCompleto">Período completo</button>
+        <button class="btn" id="btnTrocarPlanilha">Trocar planilha</button>
+      </div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi-card accent-primary">
+        <div class="kpi-label">Saíram do estoque</div>
+        <div class="kpi-value" id="kpiSaidas">-</div>
+        <div class="kpi-sub" id="kpiSaidasSub">-</div>
+      </div>
+      <div class="kpi-card accent-primary">
+        <div class="kpi-label">Entraram no estoque</div>
+        <div class="kpi-value" id="kpiEntradas">-</div>
+        <div class="kpi-sub" id="kpiEntradasSub">-</div>
+      </div>
+      <div class="kpi-card accent-red">
+        <div class="kpi-label">Não retornaram</div>
+        <div class="kpi-value" id="kpiNaoRetorna">-</div>
+        <div class="kpi-sub" id="kpiNaoRetornaSub">-</div>
+      </div>
+    </div>
+
     <div class="card">
-      <h2>Estoque disponível para venda local</h2>
-      <p class="card-sub">Pallets que saíram com status "Não Retorna" — formam o estoque disponível para revenda próxima de onde estão.</p>
-
-      <div class="price-config">
-        <label for="precoPadrao">Preço de venda padrão (R$/pallet)</label>
-        <input type="number" id="precoPadrao" min="0" step="0.5" value="20">
+      <div class="card-header-row">
+        <div>
+          <h2>Para onde foram os pallets que não retornaram</h2>
+          <p class="card-sub">Agrupado por transportadora/cliente e estado — é aqui que estão os pallets parados, prontos para cobrança ou revenda local.</p>
+        </div>
+        <button class="btn btn-primary" id="btnExportCsv">Exportar CSV</button>
       </div>
-
-      <div class="filters-bar">
-        <div class="filter-field">
-          <label for="filtroEstado">Estado</label>
-          <select id="filtroEstado"><option value="">Todos</option></select>
-        </div>
-        <div class="filter-field">
-          <label for="filtroQtdMin">Qtd. mínima</label>
-          <input type="number" id="filtroQtdMin" min="0" step="50" value="0" style="width:110px;">
-        </div>
-        <div class="filter-field">
-          <label for="filtroStatus">Status de negociação</label>
-          <select id="filtroStatus">
-            <option value="">Todos</option>
-            <option value="aberto">🔵 Em aberto</option>
-            <option value="contatado">🟡 Contatado</option>
-            <option value="negociando">🟠 Negociando</option>
-            <option value="vendido">✅ Vendido</option>
-            <option value="perdido">❌ Perdido</option>
-          </select>
-        </div>
-        <button class="btn" id="btnLimparFiltros">Limpar filtros</button>
-        <div style="margin-left:auto; font-size:12.5px; color:var(--muted); align-self:center;" id="filtroResumo"></div>
-      </div>
-
       <div class="table-scroll">
-        <table id="estoqueTable">
+        <table id="destinoTable">
           <thead>
             <tr>
               <th>Transportadora / Cliente</th>
               <th>Estado</th>
               <th class="num">Qtd. pallets</th>
-              <th class="num">Valor potencial</th>
-              <th>Última saída</th>
-              <th>Status de negociação</th>
-              <th>Observação</th>
+              <th class="num">% do total</th>
+              <th>Última saída no período</th>
             </tr>
           </thead>
-          <tbody id="estoqueTbody"></tbody>
+          <tbody id="destinoTbody"></tbody>
           <tfoot>
             <tr>
               <td>Total</td>
               <td></td>
-              <td class="num" id="footTotalQtd">-</td>
-              <td class="num" id="footTotalValor">-</td>
-              <td colspan="3"></td>
+              <td class="num" id="destinoTotalQtd">-</td>
+              <td class="num">100%</td>
+              <td></td>
             </tr>
           </tfoot>
         </table>
@@ -466,352 +229,36 @@
     </div>
   </section>
 
-  <!-- ABA 3 -->
-  <section id="tab-compradores" class="tab-panel">
-    <div class="card">
-      <h2>Busca de compradores locais</h2>
-      <p class="card-sub">Trazer pallets do Sudeste/Nordeste ao RS quase nunca compensa pelo frete. Encontre compradores de pallets usados perto de onde eles estão parados.</p>
-
-      <div class="filter-field" style="margin-bottom:18px; max-width:280px;">
-        <label for="estadoBusca">Estado</label>
-        <select id="estadoBusca"></select>
-      </div>
-
-      <div class="state-summary">
-        <div class="box">
-          <div class="lbl">Pallets disponíveis</div>
-          <div class="val" id="buscaQtd">-</div>
-        </div>
-        <div class="box">
-          <div class="lbl">Valor potencial</div>
-          <div class="val" id="buscaValor">-</div>
-        </div>
-      </div>
-
-      <h3 style="font-size:14px; margin:0 0 10px;">Queries de busca prontas</h3>
-      <div class="query-list" id="queryList"></div>
-
-      <h3 style="font-size:14px; margin:18px 0 10px;">Contatos de compradores anotados</h3>
-      <div class="contact-form">
-        <div class="filter-field">
-          <label>Nome / empresa</label>
-          <input type="text" id="contatoNome" placeholder="Ex: Recicla Pallets SP">
-        </div>
-        <div class="filter-field">
-          <label>Telefone / e-mail</label>
-          <input type="text" id="contatoInfo" placeholder="Ex: (11) 99999-0000">
-        </div>
-        <div class="filter-field" style="flex:1; min-width:200px;">
-          <label>Observação</label>
-          <input type="text" id="contatoObs" placeholder="Ex: paga R$18/pallet, retira no local">
-        </div>
-        <button class="btn btn-primary" id="btnAddContato">Adicionar contato</button>
-      </div>
-      <ul class="contact-list" id="contatoList"></ul>
-    </div>
-  </section>
-
-  <!-- ABA 4 -->
-  <section id="tab-resumo" class="tab-panel">
-    <div class="card">
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
-        <div>
-          <h2>Resumo mensal</h2>
-          <p class="card-sub" id="resumoPeriodoLabel">Fevereiro/2025 a junho/2026 (janeiro/2025 foi atípico e foi excluído da série).</p>
-        </div>
-        <div style="display:flex; gap:10px; align-items:flex-end;">
-          <div class="filter-field">
-            <label for="periodoFiltroResumo">Período</label>
-            <select id="periodoFiltroResumo">
-              <option value="1">Último mês</option>
-              <option value="3">Últimos 3 meses</option>
-              <option value="6">Últimos 6 meses</option>
-              <option value="12">Últimos 12 meses</option>
-              <option value="all">Todo o período</option>
-            </select>
-          </div>
-          <button class="btn btn-primary" id="btnExportCsv">Exportar CSV</button>
-        </div>
-      </div>
-      <div class="table-scroll">
-        <table id="resumoTable">
-          <thead>
-            <tr>
-              <th>Mês</th>
-              <th class="num">Saídas</th>
-              <th class="num">Não retorna</th>
-              <th class="num">% perdida</th>
-              <th class="num">Compras (reposição)</th>
-              <th class="num">Retornos físicos</th>
-              <th class="num">Custo da perda (×R$32)</th>
-              <th class="num">Valor recuperável (×R$20)</th>
-            </tr>
-          </thead>
-          <tbody id="resumoTbody"></tbody>
-          <tfoot id="resumoTfoot"></tfoot>
-        </table>
-      </div>
-    </div>
-  </section>
-
-  <!-- ABA 5 -->
-  <section id="tab-importar" class="tab-panel">
-    <div class="card">
-      <h2>Importar planilha de controle de pallets</h2>
-      <p class="card-sub">Envie o arquivo .xlsx atualizado da planilha de controle. O app recalcula automaticamente o estoque disponível e o resumo mensal a partir dele, substituindo os dados de exemplo.</p>
-
-      <div id="importStatusAtual" class="import-status-box"></div>
-
-      <div class="import-rules">
-        <h3>Como as linhas da planilha são classificadas</h3>
-        <ul>
-          <li><b>Saída do estoque</b> + Status <b>Não Retorna</b> → vira estoque disponível para venda (agrupado por transportadora/cliente + estado).</li>
-          <li><b>Saída do estoque</b> + Status <b>Retorna</b> → ignorada (já está controlada).</li>
-          <li><b>Entrada no estoque</b> + Motivo <b>COMPRA</b> → conta como custo de reposição, não como pallet em campo.</li>
-          <li><b>Entrada no estoque</b> + outros motivos (transportadora) → conta como retorno físico.</li>
-        </ul>
-        <p class="card-sub" style="margin:0;">Colunas usadas: Tipo de Movimento, Data, Quantidade, Motivo, Estado, Status. As colunas Turno, Observação, Vale Palete e Id Item são ignoradas (Descrição do Item, se existir, é usada só para filtrar linhas que não sejam de pallet).</p>
-      </div>
-
-      <div class="filter-field" style="margin:18px 0;">
-        <label for="importFile">Arquivo da planilha (.xlsx)</label>
-        <input type="file" id="importFile" accept=".xlsx,.xls">
-      </div>
-
-      <div id="importPreview" style="display:none;"></div>
-    </div>
-  </section>
-
 </main>
-
-<div id="mapTooltip"></div>
-
-<!-- Modal venda -->
-<div class="modal-overlay" id="modalVenda">
-  <div class="modal-box">
-    <h3>Registrar venda</h3>
-    <p style="margin:0 0 14px; font-size:12.5px; color:var(--muted);" id="modalVendaInfo"></p>
-    <div class="field">
-      <label for="modalQtd">Quantidade vendida</label>
-      <input type="number" id="modalQtd" min="1" step="1">
-    </div>
-    <div class="field">
-      <label for="modalPreco">Preço por pallet (R$)</label>
-      <input type="number" id="modalPreco" min="0" step="0.5">
-    </div>
-    <div class="modal-actions">
-      <button class="btn" id="btnCancelaVenda">Cancelar</button>
-      <button class="btn btn-primary" id="btnConfirmaVenda">Confirmar venda</button>
-    </div>
-  </div>
-</div>
 
 <script>
 (function(){
 "use strict";
 
 /* ============================================================
-   DADOS EMBUTIDOS
-   ============================================================ */
-
-const DEFAULT_STOCK = [
-  {transportadora:"MSRP TRANSPORTES LTDA ME", estado:"Rio de Janeiro", qtd:77415, ultimaSaida:"2026-06-20"},
-  {transportadora:"TRANSFERENCIA GUARULHOS", estado:"São Paulo", qtd:12692, ultimaSaida:"2026-06-30"},
-  {transportadora:"PANDURATA ALIMENTOS LTDA", estado:"Minas Gerais", qtd:9220, ultimaSaida:"2026-06-27"},
-  {transportadora:"DIOGO BRAMBILA", estado:"São Paulo", qtd:6934, ultimaSaida:"2026-06-20"},
-  {transportadora:"DIOGO BRAMBILA", estado:"Minas Gerais", qtd:5801, ultimaSaida:"2026-06-30"},
-  {transportadora:"REITER TRANSPORTES E LOGISTICA LTDA", estado:"São Paulo", qtd:4005, ultimaSaida:"2025-10-14"},
-  {transportadora:"ALIANCA NAVEGACAO E LOGISTICA LTDA", estado:"Pernambuco", qtd:3789, ultimaSaida:"2026-05-26"},
-  {transportadora:"MOINHO ROMARIZ IND.COM.IMP.EXP.DE PROD.A", estado:"São Paulo", qtd:3770, ultimaSaida:"2026-06-30"},
-  {transportadora:"CDA - DISTRIBUIDORA DE ALIMENTOS LTDA", estado:"Minas Gerais", qtd:3672, ultimaSaida:"2026-02-11"},
-  {transportadora:"DIOGO BRAMBILA", estado:"Rio de Janeiro", qtd:3503, ultimaSaida:"2026-06-11"},
-  {transportadora:"PANDURATA ALIMENTOS LTDA", estado:"São Paulo", qtd:2885, ultimaSaida:"2026-06-15"},
-  {transportadora:"SONDA SUPERMERCADOS", estado:"São Paulo", qtd:1994, ultimaSaida:"2026-05-25"},
-  {transportadora:"TKE-TRANSPORTES KARGO EXPERT", estado:"Rio de Janeiro", qtd:1937, ultimaSaida:"2025-09-10"},
-  {transportadora:"REITER TRANSPORTES E LOGISTICA LTDA", estado:"Rio de Janeiro", qtd:1829, ultimaSaida:"2025-10-10"},
-  {transportadora:"REITER TRANSPORTES E LOGISTICA LTDA", estado:"Minas Gerais", qtd:1715, ultimaSaida:"2025-06-26"},
-  {transportadora:"DINON JCC TRANSPORTES LTDA", estado:"São Paulo", qtd:1562, ultimaSaida:"2026-06-19"},
-  {transportadora:"FERMONTES COMERCIO LTDA", estado:"Minas Gerais", qtd:1406, ultimaSaida:"2026-05-18"},
-  {transportadora:"NEOVIA NUTRICAO E SAUDE ANIMAL", estado:"Pernambuco", qtd:1403, ultimaSaida:"2026-06-30"},
-  {transportadora:"EDINI TRANSPORTES LTDA", estado:"São Paulo", qtd:1298, ultimaSaida:"2026-05-30"},
-  {transportadora:"PRODUTOS ALIMENTICIOS CEFER", estado:"São Paulo", qtd:1003, ultimaSaida:"2026-05-30"},
-  {transportadora:"TRANSPORTADORA TRANSVR LTDA", estado:"São Paulo", qtd:970, ultimaSaida:"2026-03-27"},
-  {transportadora:"VDA LOGISTICA E TRANSPORTES", estado:"São Paulo", qtd:956, ultimaSaida:"2025-07-30"},
-  {transportadora:"TKE-TRANSPORTES KARGO EXPERT", estado:"Minas Gerais", qtd:918, ultimaSaida:"2025-10-11"},
-  {transportadora:"MSRP TRANSPORTES LTDA ME", estado:"São Paulo", qtd:710, ultimaSaida:"2025-11-29"},
-  {transportadora:"RUY NEHRING E CIA LTDA", estado:"Minas Gerais", qtd:688, ultimaSaida:"2026-06-29"},
-  {transportadora:"THEO TRANSPORTES", estado:"São Paulo", qtd:584, ultimaSaida:"2024-12-03"},
-  {transportadora:"TRANSPORTADORA TRANSVR LTDA", estado:"Minas Gerais", qtd:535, ultimaSaida:"2025-10-26"},
-  {transportadora:"REITER TRANSPORTES E LOGISTICA LTDA", estado:"Bahia", qtd:510, ultimaSaida:"2023-11-07"},
-  {transportadora:"ALIANCA NAVEGACAO E LOGISTICA LTDA", estado:"Paraná", qtd:810, ultimaSaida:"2025-08-15"}
-];
-
-const DEFAULT_MONTHLY = [
-  {mes:"2025-02", saidas:4531, naoRetorna:1942, compras:2945, retornos:2799},
-  {mes:"2025-03", saidas:5660, naoRetorna:2553, compras:2800, retornos:2363},
-  {mes:"2025-04", saidas:4880, naoRetorna:2264, compras:1200, retornos:2323},
-  {mes:"2025-05", saidas:5209, naoRetorna:2424, compras:3351, retornos:3357},
-  {mes:"2025-06", saidas:5357, naoRetorna:2452, compras:3300, retornos:3543},
-  {mes:"2025-07", saidas:5593, naoRetorna:2512, compras:2800, retornos:3176},
-  {mes:"2025-08", saidas:4008, naoRetorna:1971, compras:1200, retornos:2120},
-  {mes:"2025-09", saidas:4463, naoRetorna:1900, compras:1600, retornos:2730},
-  {mes:"2025-10", saidas:4758, naoRetorna:1869, compras:1600, retornos:2516},
-  {mes:"2025-11", saidas:3159, naoRetorna:1503, compras:2400, retornos:2322},
-  {mes:"2025-12", saidas:3204, naoRetorna:1192, compras:900, retornos:2210},
-  {mes:"2026-01", saidas:3458, naoRetorna:1545, compras:1200, retornos:3446},
-  {mes:"2026-02", saidas:3028, naoRetorna:1208, compras:1800, retornos:2700},
-  {mes:"2026-03", saidas:4024, naoRetorna:1465, compras:1700, retornos:2806},
-  {mes:"2026-04", saidas:2895, naoRetorna:1642, compras:2200, retornos:2210},
-  {mes:"2026-05", saidas:2757, naoRetorna:1678, compras:0, retornos:1337},
-  {mes:"2026-06", saidas:2398, naoRetorna:1355, compras:1100, retornos:1721}
-];
-
-// Dados ativos: substituídos pelos dados importados (aba "Importar Dados"), se houver.
-let STOCK = [];
-let MONTHLY = [];
-
-function stockId(transportadora, estado){
-  return `${transportadora}__${estado}`;
-}
-
-const CUSTO_PERDA_PALLET = 32;   // custo de repor um pallet perdido
-const VALOR_RECUPERAVEL_PALLET = 20; // valor de venda fixo usado no resumo mensal
-
-const CIDADE_PRINCIPAL = {
-  "Rio de Janeiro":"Rio de Janeiro",
-  "São Paulo":"São Paulo",
-  "Minas Gerais":"Belo Horizonte",
-  "Pernambuco":"Recife",
-  "Paraná":"Curitiba",
-  "Bahia":"Salvador"
-};
-
-// Grid esquemático (cartograma hexagonal) do Brasil: {uf, nome, col, row}
-const HEX_GRID = [
-  {uf:"RR", nome:"Roraima", col:4, row:0},
-  {uf:"AP", nome:"Amapá", col:6, row:0},
-  {uf:"AM", nome:"Amazonas", col:2, row:1},
-  {uf:"PA", nome:"Pará", col:5, row:1},
-  {uf:"AC", nome:"Acre", col:1, row:3},
-  {uf:"RO", nome:"Rondônia", col:3, row:3},
-  {uf:"TO", nome:"Tocantins", col:6, row:3},
-  {uf:"MA", nome:"Maranhão", col:7, row:2},
-  {uf:"PI", nome:"Piauí", col:8, row:3},
-  {uf:"CE", nome:"Ceará", col:9, row:2},
-  {uf:"RN", nome:"Rio Grande do Norte", col:10, row:2},
-  {uf:"PB", nome:"Paraíba", col:10, row:3},
-  {uf:"PE", nome:"Pernambuco", col:9, row:4},
-  {uf:"AL", nome:"Alagoas", col:10, row:4},
-  {uf:"SE", nome:"Sergipe", col:10, row:5},
-  {uf:"BA", nome:"Bahia", col:8, row:5},
-  {uf:"MT", nome:"Mato Grosso", col:3, row:5},
-  {uf:"GO", nome:"Goiás", col:6, row:5},
-  {uf:"DF", nome:"Distrito Federal", col:7, row:5},
-  {uf:"MS", nome:"Mato Grosso do Sul", col:4, row:7},
-  {uf:"MG", nome:"Minas Gerais", col:7, row:6},
-  {uf:"ES", nome:"Espírito Santo", col:9, row:6},
-  {uf:"SP", nome:"São Paulo", col:6, row:8},
-  {uf:"RJ", nome:"Rio de Janeiro", col:8, row:7},
-  {uf:"PR", nome:"Paraná", col:5, row:9},
-  {uf:"SC", nome:"Santa Catarina", col:5, row:10},
-  {uf:"RS", nome:"Rio Grande do Sul", col:4, row:11}
-];
-
-/* ============================================================
    HELPERS
    ============================================================ */
 
 const fmtInt = n => Math.round(n).toLocaleString("pt-BR");
-const fmtMoney = n => n.toLocaleString("pt-BR", {style:"currency", currency:"BRL", maximumFractionDigits:0});
-const fmtMoney2 = n => n.toLocaleString("pt-BR", {style:"currency", currency:"BRL"});
 const fmtDate = iso => { const [y,m,d] = iso.split("-"); return `${d}/${m}/${y}`; };
-const MESES_ABREV = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
-const fmtMes = iso => { const [y,m] = iso.split("-"); return `${MESES_ABREV[parseInt(m,10)-1]}/${y.slice(2)}`; };
-
-const LS_NEG = "antoniazzi_negociacoes";
-const LS_PRECO = "antoniazzi_preco_padrao";
-const LS_CONTATOS = "antoniazzi_contatos";
-const LS_STOCK = "antoniazzi_stock_data";
-const LS_MONTHLY = "antoniazzi_monthly_data";
-const LS_IMPORT_META = "antoniazzi_import_meta";
-const LS_PERIODO = "antoniazzi_periodo_filtro";
-
-function loadJSON(key, fallback){
-  try{
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  }catch(e){ return fallback; }
+function escapeHtml(s){
+  return String(s==null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }
-function saveJSON(key, val){
-  localStorage.setItem(key, JSON.stringify(val));
-}
-
-let negociacoes = loadJSON(LS_NEG, {});
-let contatos = loadJSON(LS_CONTATOS, {});
-let precoPadrao = parseFloat(localStorage.getItem(LS_PRECO)) || 20;
-let periodoAtual = localStorage.getItem(LS_PERIODO) || "all";
-
-function loadData(){
-  const storedStock = loadJSON(LS_STOCK, null);
-  const storedMonthly = loadJSON(LS_MONTHLY, null);
-  if(storedStock && storedMonthly){
-    STOCK = storedStock.map(r=>Object.assign({}, r, {id: stockId(r.transportadora, r.estado)}));
-    MONTHLY = storedMonthly;
-  } else {
-    STOCK = DEFAULT_STOCK.map(r=>Object.assign({}, r, {id: stockId(r.transportadora, r.estado)}));
-    MONTHLY = DEFAULT_MONTHLY.map(m=>Object.assign({}, m));
-  }
-}
-
-function getFilteredMonthly(){
-  if(periodoAtual === "all" || MONTHLY.length===0) return MONTHLY;
-  const n = parseInt(periodoAtual, 10);
-  return MONTHLY.slice(-n);
-}
-
-function labelPeriodo(p){
-  if(p==="all") return "todo o período";
-  if(p==="1") return "último mês";
-  return `últimos ${p} meses`;
-}
-
-function getNeg(id){
-  return negociacoes[id] || {status:"aberto", obs:"", vendidoQtd:0, vendidoPreco:0};
-}
-function setNeg(id, data){
-  negociacoes[id] = Object.assign({}, getNeg(id), data);
-  saveJSON(LS_NEG, negociacoes);
-}
-
-const STATUS_LABEL = {
-  aberto: "🔵 Em aberto",
-  contatado: "🟡 Contatado",
-  negociando: "🟠 Negociando",
-  vendido: "✅ Vendido",
-  perdido: "❌ Perdido"
-};
-
-/* ============================================================
-   TABS
-   ============================================================ */
-
-document.querySelectorAll(".tab-btn").forEach(btn=>{
-  btn.addEventListener("click", ()=> switchTab(btn.dataset.tab));
-});
-function switchTab(tab){
-  document.querySelectorAll(".tab-btn").forEach(b=>b.classList.toggle("active", b.dataset.tab===tab));
-  document.querySelectorAll(".tab-panel").forEach(p=>p.classList.toggle("active", p.id === "tab-"+tab));
-}
-
-/* ============================================================
-   IMPORTAÇÃO DE PLANILHA (.xlsx)
-   ============================================================ */
-
 function stripAccents(s){
   return String(s==null ? "" : s).normalize("NFD").replace(/[\u0300-\u036f]/g,"");
 }
 function norm(s){
   return stripAccents(s).trim().toLowerCase();
+}
+
+/* ============================================================
+   LEITURA DA PLANILHA (.xlsx)
+   ============================================================ */
+
+const PLANILHA_ABA_PREFERIDA = "BD_Movimento_Estoque";
+
+function canonSheetName(s){
+  return norm(s).replace(/[\s_]+/g, "");
 }
 
 function findColIndex(headerRow, keywords){
@@ -820,6 +267,27 @@ function findColIndex(headerRow, keywords){
     if(keywords.some(k=> h.includes(k))) return i;
   }
   return -1;
+}
+
+function pickSheetName(wb){
+  const exact = wb.SheetNames.find(n => canonSheetName(n) === canonSheetName(PLANILHA_ABA_PREFERIDA));
+  if(exact) return exact;
+
+  const partial = wb.SheetNames.find(n => { const c = norm(n); return c.includes("movimento") && c.includes("estoque"); });
+  if(partial) return partial;
+
+  for(const name of wb.SheetNames){
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], {header:1, defval:""});
+    if(rows.length && rows[0]){
+      const header = rows[0];
+      const hasTipo = findColIndex(header, ["tipo de movimento","tipo"]) !== -1;
+      const hasStatus = findColIndex(header, ["status"]) !== -1;
+      const hasMotivo = findColIndex(header, ["motivo"]) !== -1;
+      if(hasTipo && hasStatus && hasMotivo) return name;
+    }
+  }
+
+  return wb.SheetNames[0];
 }
 
 function excelSerialToISO(n){
@@ -840,7 +308,8 @@ function parseDateCell(val){
   return null;
 }
 
-function parseWorkbookRows(rows){
+// Converte as linhas brutas da planilha numa lista de movimentos classificados
+function parseMovimentos(rows){
   if(!rows || rows.length < 2) throw new Error("Planilha vazia ou sem linhas de dados.");
   const header = rows[0];
 
@@ -859,8 +328,7 @@ function parseWorkbookRows(rows){
     throw new Error("Não encontrei as colunas: " + faltando.join(", ") + ". Confira o cabeçalho da planilha.");
   }
 
-  const stockAgg = new Map();
-  const monthlyAgg = new Map();
+  const movimentos = [];
   const stats = {
     linhasLidas:0, saidaNaoRetorna:0, saidaNaoRetornaQtd:0, saidaRetorna:0, saidaRetornaQtd:0,
     entradaCompra:0, entradaCompraQtd:0, entradaOutras:0, entradaOutrasQtd:0,
@@ -889,165 +357,52 @@ function parseWorkbookRows(rows){
       continue;
     }
 
-    const mesKey = dataIso.slice(0,7);
-    if(!stats.mesMin || mesKey < stats.mesMin) stats.mesMin = mesKey;
-    if(!stats.mesMax || mesKey > stats.mesMax) stats.mesMax = mesKey;
-
-    if(!monthlyAgg.has(mesKey)) monthlyAgg.set(mesKey, {mes:mesKey, saidas:0, naoRetorna:0, compras:0, retornos:0});
-    const mAgg = monthlyAgg.get(mesKey);
+    if(!stats.mesMin || dataIso < stats.mesMin) stats.mesMin = dataIso;
+    if(!stats.mesMax || dataIso > stats.mesMax) stats.mesMax = dataIso;
 
     const motivo = String(row[idx.motivo]||"").trim();
-    const estado = String(row[idx.estado]||"").trim();
+    const estado = String(row[idx.estado]||"").trim() || "(sem estado)";
 
     if(isSaida){
-      const isNaoRetorna = norm(row[idx.status]).includes("nao retorna");
-      mAgg.saidas += qtd;
-      if(isNaoRetorna){
-        stats.saidaNaoRetorna++; stats.saidaNaoRetornaQtd += qtd;
-        mAgg.naoRetorna += qtd;
-        const transportadora = motivo || "(sem transportadora)";
-        const key = stockId(transportadora, estado);
-        if(!stockAgg.has(key)) stockAgg.set(key, {transportadora, estado, qtd:0, ultimaSaida:dataIso});
-        const sAgg = stockAgg.get(key);
-        sAgg.qtd += qtd;
-        if(dataIso > sAgg.ultimaSaida) sAgg.ultimaSaida = dataIso;
-      } else {
-        stats.saidaRetorna++; stats.saidaRetornaQtd += qtd;
-      }
+      const naoRetorna = norm(row[idx.status]).includes("nao retorna");
+      if(naoRetorna){ stats.saidaNaoRetorna++; stats.saidaNaoRetornaQtd += qtd; }
+      else { stats.saidaRetorna++; stats.saidaRetornaQtd += qtd; }
+      movimentos.push({
+        tipo:"saida", data:dataIso, qtd, naoRetorna,
+        transportadora: motivo || "(sem transportadora)", estado
+      });
     } else {
-      const isCompra = norm(motivo).includes("compra");
-      if(isCompra){
-        stats.entradaCompra++; stats.entradaCompraQtd += qtd;
-        mAgg.compras += qtd;
-      } else {
-        stats.entradaOutras++; stats.entradaOutrasQtd += qtd;
-        mAgg.retornos += qtd;
-      }
+      const compra = norm(motivo).includes("compra");
+      if(compra){ stats.entradaCompra++; stats.entradaCompraQtd += qtd; }
+      else { stats.entradaOutras++; stats.entradaOutrasQtd += qtd; }
+      movimentos.push({ tipo:"entrada", data:dataIso, qtd, compra });
     }
   }
 
-  const stock = Array.from(stockAgg.values()).sort((a,b)=>b.qtd-a.qtd);
-  const monthly = Array.from(monthlyAgg.values()).sort((a,b)=> a.mes < b.mes ? -1 : 1);
-
-  if(stock.length===0 && monthly.length===0){
+  if(movimentos.length===0){
     throw new Error("Nenhuma linha válida foi reconhecida. Confira os valores de Tipo de Movimento, Data e Quantidade.");
   }
 
-  return {stock, monthly, stats};
+  return {movimentos, stats};
 }
 
-let pendingImport = null;
+/* ============================================================
+   ESTADO DA APLICAÇÃO
+   ============================================================ */
 
-function renderImportPreview(stats, stock, monthly, fileName, sheetName){
-  const el = document.getElementById("importPreview");
-  el.style.display = "block";
-  const totalStockQtd = stock.reduce((s,r)=>s+r.qtd,0);
-  el.innerHTML = `
-    <div class="import-preview-box">
-      <h3>Prévia da importação — ${fileName}</h3>
-      <div class="import-stats-grid">
-        <div><span class="lbl">Aba lida</span><span class="val">${sheetName || "-"}</span></div>
-        <div><span class="lbl">Linhas lidas</span><span class="val">${fmtInt(stats.linhasLidas)}</span></div>
-        <div><span class="lbl">Período coberto</span><span class="val">${stats.mesMin?fmtMes(stats.mesMin):"-"} a ${stats.mesMax?fmtMes(stats.mesMax):"-"}</span></div>
-        <div><span class="lbl">Saída · Não Retorna (vira estoque)</span><span class="val">${fmtInt(stats.saidaNaoRetorna)} linhas · ${fmtInt(stats.saidaNaoRetornaQtd)} pallets</span></div>
-        <div><span class="lbl">Saída · Retorna (ignorada)</span><span class="val">${fmtInt(stats.saidaRetorna)} linhas · ${fmtInt(stats.saidaRetornaQtd)} pallets</span></div>
-        <div><span class="lbl">Entrada · Compra (custo)</span><span class="val">${fmtInt(stats.entradaCompra)} linhas · ${fmtInt(stats.entradaCompraQtd)} pallets</span></div>
-        <div><span class="lbl">Entrada · Outras (retorno físico)</span><span class="val">${fmtInt(stats.entradaOutras)} linhas · ${fmtInt(stats.entradaOutrasQtd)} pallets</span></div>
-        <div><span class="lbl">Linhas ignoradas (erro/item)</span><span class="val">${fmtInt(stats.ignoradasErro + stats.ignoradasItem)}</span></div>
-        <div><span class="lbl">Estoque disponível resultante</span><span class="val">${fmtInt(totalStockQtd)} pallets em ${stock.length} combinações</span></div>
-      </div>
-      <p class="card-sub" style="margin-top:12px; margin-bottom:0;">Confirmar substitui os dados atuais por esses. Status de negociação/observações já salvos para combinações de transportadora + estado que continuarem existindo são preservados.</p>
-      <div class="modal-actions" style="justify-content:flex-start;">
-        <button class="btn btn-primary" id="btnConfirmarImport">Confirmar e aplicar</button>
-        <button class="btn" id="btnCancelarImport">Cancelar</button>
-      </div>
-    </div>
-  `;
-  document.getElementById("btnConfirmarImport").addEventListener("click", applyImportedData);
-  document.getElementById("btnCancelarImport").addEventListener("click", ()=>{
-    pendingImport = null;
-    el.style.display = "none";
-    document.getElementById("importFile").value = "";
-  });
+let movimentos = [];
+let ultimoRelatorio = {destinos:[], de:"", ate:""};
+
+const fileInput = document.getElementById("fileInput");
+const uploadDrop = document.getElementById("uploadDrop");
+const uploadStatus = document.getElementById("uploadStatus");
+
+function mostrarErroUpload(msg){
+  uploadStatus.innerHTML = `<div class="upload-error">Não foi possível importar: ${escapeHtml(msg)}</div>`;
 }
 
-function renderImportError(msg){
-  const el = document.getElementById("importPreview");
-  el.style.display = "block";
-  el.innerHTML = `<div class="import-preview-box import-error"><h3>Não foi possível importar</h3><p style="margin:0;">${msg}</p></div>`;
-  pendingImport = null;
-}
-
-function applyImportedData(){
-  if(!pendingImport) return;
-  STOCK = pendingImport.stock.map(r=>Object.assign({}, r, {id: stockId(r.transportadora, r.estado)}));
-  MONTHLY = pendingImport.monthly;
-  saveJSON(LS_STOCK, pendingImport.stock);
-  saveJSON(LS_MONTHLY, pendingImport.monthly);
-  saveJSON(LS_IMPORT_META, {fileName: pendingImport.fileName, importadoEm: new Date().toISOString(), linhas: STOCK.length});
-  pendingImport = null;
-  document.getElementById("importPreview").style.display = "none";
-  document.getElementById("importFile").value = "";
-  renderImportStatusAtual();
-  fullRerender();
-}
-
-function restaurarDadosExemplo(){
-  if(!confirm("Isso remove os dados importados e volta para os dados de exemplo fixos. Continuar?")) return;
-  localStorage.removeItem(LS_STOCK);
-  localStorage.removeItem(LS_MONTHLY);
-  localStorage.removeItem(LS_IMPORT_META);
-  loadData();
-  renderImportStatusAtual();
-  fullRerender();
-}
-
-function renderImportStatusAtual(){
-  const el = document.getElementById("importStatusAtual");
-  const meta = loadJSON(LS_IMPORT_META, null);
-  if(meta){
-    const dt = new Date(meta.importadoEm);
-    el.innerHTML = `
-      <div class="import-status-active">
-        <div>📄 Usando dados importados de <b>${meta.fileName}</b> — ${dt.toLocaleDateString("pt-BR")} às ${dt.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})} (${fmtInt(meta.linhas)} combinações de estoque)</div>
-        <button class="btn btn-sm" id="btnRestaurarExemplo">Restaurar dados de exemplo</button>
-      </div>`;
-    document.getElementById("btnRestaurarExemplo").addEventListener("click", restaurarDadosExemplo);
-  } else {
-    el.innerHTML = `<div class="import-status-demo">⚠️ Exibindo dados de exemplo fixos. Importe o .xlsx atualizado abaixo para usar os dados reais.</div>`;
-  }
-}
-
-const PLANILHA_ABA_PREFERIDA = "BD_Movimento_Estoque";
-
-function canonSheetName(s){
-  return norm(s).replace(/[\s_]+/g, "");
-}
-
-function pickSheetName(wb){
-  const exact = wb.SheetNames.find(n => canonSheetName(n) === canonSheetName(PLANILHA_ABA_PREFERIDA));
-  if(exact) return exact;
-
-  const partial = wb.SheetNames.find(n => { const c = norm(n); return c.includes("movimento") && c.includes("estoque"); });
-  if(partial) return partial;
-
-  for(const name of wb.SheetNames){
-    const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], {header:1, defval:""});
-    if(rows.length && rows[0]){
-      const header = rows[0];
-      const hasTipo = findColIndex(header, ["tipo de movimento","tipo"]) !== -1;
-      const hasStatus = findColIndex(header, ["status"]) !== -1;
-      const hasMotivo = findColIndex(header, ["motivo"]) !== -1;
-      if(hasTipo && hasStatus && hasMotivo) return name;
-    }
-  }
-
-  return wb.SheetNames[0];
-}
-
-document.getElementById("importFile").addEventListener("change", (e)=>{
-  const file = e.target.files[0];
-  if(!file) return;
+function processarArquivo(file){
+  uploadStatus.innerHTML = "";
   const reader = new FileReader();
   reader.onload = (ev)=>{
     let sheetName = null;
@@ -1057,616 +412,154 @@ document.getElementById("importFile").addEventListener("change", (e)=>{
       sheetName = pickSheetName(wb);
       const ws = wb.Sheets[sheetName];
       const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:""});
-      const result = parseWorkbookRows(rows);
-      pendingImport = {stock: result.stock, monthly: result.monthly, fileName: file.name};
-      renderImportPreview(result.stats, result.stock, result.monthly, file.name, sheetName);
+      const result = parseMovimentos(rows);
+      movimentos = result.movimentos;
+      abrirRelatorio(file.name, sheetName, result.stats);
     }catch(err){
       const msg = (err.message || String(err)) + (sheetName ? ` (aba lida: "${sheetName}")` : "");
-      renderImportError(msg);
+      mostrarErroUpload(msg);
     }
   };
-  reader.onerror = ()=> renderImportError("Não foi possível ler o arquivo.");
+  reader.onerror = ()=> mostrarErroUpload("Não foi possível ler o arquivo.");
   reader.readAsArrayBuffer(file);
+}
+
+fileInput.addEventListener("change", (e)=>{
+  const file = e.target.files[0];
+  if(file) processarArquivo(file);
 });
 
-document.getElementById("periodoFiltroChart").addEventListener("change", e=> setPeriodo(e.target.value));
-document.getElementById("periodoFiltroResumo").addEventListener("change", e=> setPeriodo(e.target.value));
-function setPeriodo(val){
-  periodoAtual = val;
-  localStorage.setItem(LS_PERIODO, val);
-  document.getElementById("periodoFiltroChart").value = val;
-  document.getElementById("periodoFiltroResumo").value = val;
-  renderDashboard();
-  renderResumo();
-}
+["dragover","dragenter"].forEach(evt=>{
+  uploadDrop.addEventListener(evt, e=>{ e.preventDefault(); uploadDrop.classList.add("dragover"); });
+});
+["dragleave","drop"].forEach(evt=>{
+  uploadDrop.addEventListener(evt, e=>{ e.preventDefault(); uploadDrop.classList.remove("dragover"); });
+});
+uploadDrop.addEventListener("drop", e=>{
+  const file = e.dataTransfer.files && e.dataTransfer.files[0];
+  if(file) processarArquivo(file);
+});
 
 /* ============================================================
-   ESTADOS COM DADOS + TOTAIS
+   RELATÓRIO
    ============================================================ */
 
-function estadosComDados(){
-  const map = new Map();
-  STOCK.forEach(r=>{
-    const cur = map.get(r.estado) || {estado:r.estado, qtd:0, ultimaSaida:r.ultimaSaida};
-    cur.qtd += r.qtd;
-    if(r.ultimaSaida > cur.ultimaSaida) cur.ultimaSaida = r.ultimaSaida;
-    map.set(r.estado, cur);
+function abrirRelatorio(fileName, sheetName, stats){
+  document.getElementById("screenUpload").classList.add("hidden");
+  document.getElementById("screenReport").classList.remove("hidden");
+  document.getElementById("fileChip").textContent = `📄 ${fileName} — aba "${sheetName}"`;
+  const ignoradas = stats.ignoradasErro + stats.ignoradasItem;
+  document.getElementById("fileMeta").textContent =
+    `${fmtInt(stats.linhasLidas)} linhas processadas` + (ignoradas ? ` · ${fmtInt(ignoradas)} ignoradas (dados inválidos ou item não é pallet)` : "");
+
+  document.getElementById("dataDe").min = stats.mesMin;
+  document.getElementById("dataDe").max = stats.mesMax;
+  document.getElementById("dataAte").min = stats.mesMin;
+  document.getElementById("dataAte").max = stats.mesMax;
+  document.getElementById("dataDe").value = stats.mesMin;
+  document.getElementById("dataAte").value = stats.mesMax;
+
+  renderRelatorio();
+}
+
+function minMaxData(){
+  let min=null, max=null;
+  movimentos.forEach(m=>{
+    if(!min || m.data<min) min=m.data;
+    if(!max || m.data>max) max=m.data;
   });
-  return Array.from(map.values()).sort((a,b)=> b.qtd - a.qtd);
+  return {min, max};
 }
 
-/* ============================================================
-   ABA 1 — DASHBOARD
-   ============================================================ */
+document.getElementById("dataDe").addEventListener("change", renderRelatorio);
+document.getElementById("dataAte").addEventListener("change", renderRelatorio);
+document.getElementById("btnPeriodoCompleto").addEventListener("click", ()=>{
+  const {min, max} = minMaxData();
+  document.getElementById("dataDe").value = min;
+  document.getElementById("dataAte").value = max;
+  renderRelatorio();
+});
+document.getElementById("btnTrocarPlanilha").addEventListener("click", ()=>{
+  movimentos = [];
+  fileInput.value = "";
+  uploadStatus.innerHTML = "";
+  document.getElementById("screenReport").classList.add("hidden");
+  document.getElementById("screenUpload").classList.remove("hidden");
+});
 
-let monthlyChart = null;
+function renderRelatorio(){
+  const de = document.getElementById("dataDe").value;
+  const ate = document.getElementById("dataAte").value;
+  const filtrados = movimentos.filter(m => (!de || m.data>=de) && (!ate || m.data<=ate));
 
-function renderDashboard(){
-  const totalCampo = STOCK.reduce((s,r)=>s+r.qtd, 0);
-  const valorPotencial = totalCampo * precoPadrao;
+  let totalSaida=0, totalEntrada=0, saidaRetorna=0, saidaNaoRetorna=0, entradaCompra=0, entradaOutras=0;
+  const destinoMap = new Map();
 
-  let jaVendidoValor = 0, jaVendidoQtd = 0;
-  STOCK.forEach(r=>{
-    const n = getNeg(r.id);
-    if(n.status === "vendido"){
-      jaVendidoValor += (n.vendidoQtd||0) * (n.vendidoPreco||0);
-      jaVendidoQtd += (n.vendidoQtd||0);
-    }
-  });
-
-  const filtrado = getFilteredMonthly();
-  const totalCompras = filtrado.reduce((s,m)=>s+m.compras,0);
-  const custoReposicaoMedio = filtrado.length ? (totalCompras / filtrado.length) * CUSTO_PERDA_PALLET : 0;
-
-  document.getElementById("kpiTotalCampo").textContent = fmtInt(totalCampo) + " pallets";
-  document.getElementById("kpiValorPotencial").textContent = fmtMoney(valorPotencial);
-  document.getElementById("kpiValorPotencialSub").textContent = `ao preço padrão de R$ ${precoPadrao.toLocaleString("pt-BR")}/pallet`;
-  document.getElementById("kpiJaVendido").textContent = fmtMoney(jaVendidoValor);
-  document.getElementById("kpiJaVendidoSub").textContent = `${fmtInt(jaVendidoQtd)} pallets negociados`;
-  document.getElementById("kpiCustoReposicao").textContent = fmtMoney(custoReposicaoMedio);
-  document.getElementById("kpiCustoReposicaoSub").textContent = `compras médias × R$32/pallet — ${labelPeriodo(periodoAtual)}`;
-
-  renderMonthlyChart();
-  renderMap();
-}
-
-function renderMonthlyChart(){
-  const canvas = document.getElementById("monthlyChart");
-  if(typeof Chart === "undefined"){
-    if(canvas){
-      const note = document.createElement("div");
-      note.id = "monthlyChart";
-      note.className = "empty-note";
-      note.textContent = "Não foi possível carregar o Chart.js (sem conexão). O restante do painel continua funcionando normalmente.";
-      canvas.replaceWith(note);
-    }
-    return;
-  }
-  if(!canvas) return;
-  const ctx = canvas.getContext("2d");
-  const filtrado = getFilteredMonthly();
-  const labels = filtrado.map(m=>fmtMes(m.mes));
-  const data = {
-    labels,
-    datasets:[
-      {label:"Saídas totais", data:filtrado.map(m=>m.saidas), backgroundColor:"#94a3b8"},
-      {label:"Não retorna", data:filtrado.map(m=>m.naoRetorna), backgroundColor:"#dc2626"},
-      {label:"Compras (reposição)", data:filtrado.map(m=>m.compras), backgroundColor:"#2563eb"}
-    ]
-  };
-  if(monthlyChart){ monthlyChart.destroy(); }
-  monthlyChart = new Chart(ctx, {
-    type:"bar",
-    data,
-    options:{
-      responsive:true,
-      maintainAspectRatio:false,
-      plugins:{ legend:{ position:"top" } },
-      scales:{
-        x:{ grid:{ display:false } },
-        y:{ beginAtZero:true, ticks:{ callback:v=>v.toLocaleString("pt-BR") } }
-      }
-    }
-  });
-}
-
-/* --- Mapa hexagonal --- */
-
-let currentEstadoFiltroFromMap = null;
-
-function hexPoints(cx, cy, size){
-  const pts = [];
-  for(let i=0;i<6;i++){
-    const angle = Math.PI/180 * (60*i - 30);
-    pts.push((cx + size*Math.cos(angle)).toFixed(1) + "," + (cy + size*Math.sin(angle)).toFixed(1));
-  }
-  return pts.join(" ");
-}
-
-function interpolateColor(t, from, to){
-  const f = from.match(/\w\w/g).map(h=>parseInt(h,16));
-  const tt = to.match(/\w\w/g).map(h=>parseInt(h,16));
-  const r = Math.round(f[0] + (tt[0]-f[0])*t);
-  const g = Math.round(f[1] + (tt[1]-f[1])*t);
-  const b = Math.round(f[2] + (tt[2]-f[2])*t);
-  return `rgb(${r},${g},${b})`;
-}
-
-function renderMap(){
-  const svg = document.getElementById("brMap");
-  svg.innerHTML = "";
-  const size = 26;
-  const hexW = Math.sqrt(3) * size;
-  const hexH = 2 * size;
-  const padding = 36;
-
-  const totals = estadosComDados();
-  const byName = new Map(totals.map(t=>[t.estado, t]));
-  const maxQtd = Math.max(...totals.map(t=>t.qtd));
-  const minQtd = Math.min(...totals.map(t=>t.qtd));
-
-  const tooltip = document.getElementById("mapTooltip");
-
-  HEX_GRID.forEach(h=>{
-    const cx = padding + h.col*hexW + (h.row%2===1 ? hexW/2 : 0);
-    const cy = padding + h.row*hexH*0.75;
-    const dado = byName.get(h.nome);
-
-    let fill = "#e2e8f0";
-    let light = false;
-    if(dado){
-      const t = maxQtd===minQtd ? 1 : Math.sqrt((dado.qtd-minQtd)/(maxQtd-minQtd));
-      fill = interpolateColor(t, "#dbeafe", "#1e3a8a");
-      light = t > 0.5;
-    }
-
-    const poly = document.createElementNS("http://www.w3.org/2000/svg","polygon");
-    poly.setAttribute("points", hexPoints(cx, cy, size));
-    poly.setAttribute("fill", fill);
-    poly.classList.add("hex");
-    if(dado) poly.classList.add("has-data");
-
-    poly.addEventListener("mousemove", (ev)=>{
-      tooltip.style.display = "block";
-      tooltip.style.left = (ev.clientX+14)+"px";
-      tooltip.style.top = (ev.clientY+14)+"px";
-      if(dado){
-        tooltip.innerHTML = `<b>${h.nome}</b>${fmtInt(dado.qtd)} pallets<br>${fmtMoney(dado.qtd*precoPadrao)} potencial<br>última saída ${fmtDate(dado.ultimaSaida)}`;
+  filtrados.forEach(m=>{
+    if(m.tipo==="saida"){
+      totalSaida += m.qtd;
+      if(m.naoRetorna){
+        saidaNaoRetorna += m.qtd;
+        const key = m.transportadora + "__" + m.estado;
+        if(!destinoMap.has(key)) destinoMap.set(key, {transportadora:m.transportadora, estado:m.estado, qtd:0, ultimaSaida:m.data});
+        const d = destinoMap.get(key);
+        d.qtd += m.qtd;
+        if(m.data > d.ultimaSaida) d.ultimaSaida = m.data;
       } else {
-        tooltip.innerHTML = `<b>${h.nome}</b>sem pallets registrados`;
+        saidaRetorna += m.qtd;
       }
-    });
-    poly.addEventListener("mouseleave", ()=>{ tooltip.style.display = "none"; });
-
-    if(dado){
-      poly.addEventListener("click", ()=>{
-        document.getElementById("filtroEstado").value = h.nome;
-        renderEstoqueTable();
-        switchTab("estoque");
-      });
+    } else {
+      totalEntrada += m.qtd;
+      if(m.compra) entradaCompra += m.qtd; else entradaOutras += m.qtd;
     }
-
-    svg.appendChild(poly);
-
-    const label = document.createElementNS("http://www.w3.org/2000/svg","text");
-    label.setAttribute("x", cx);
-    label.setAttribute("y", cy);
-    label.setAttribute("class", "hex-label" + (light ? " light" : ""));
-    label.textContent = h.uf;
-    svg.appendChild(label);
   });
 
-  // legend list
-  const legendList = document.getElementById("legendList");
-  legendList.innerHTML = "";
-  totals.forEach(t=>{
-    const t01 = maxQtd===minQtd ? 1 : Math.sqrt((t.qtd-minQtd)/(maxQtd-minQtd));
-    const color = interpolateColor(t01, "#dbeafe", "#1e3a8a");
-    const li = document.createElement("li");
-    li.innerHTML = `<span><span class="swatch" style="background:${color}"></span>${t.estado}</span><span>${fmtInt(t.qtd)}</span>`;
-    li.addEventListener("click", ()=>{
-      document.getElementById("filtroEstado").value = t.estado;
-      renderEstoqueTable();
-      switchTab("estoque");
-    });
-    legendList.appendChild(li);
-  });
-}
+  document.getElementById("kpiSaidas").textContent = fmtInt(totalSaida) + " pallets";
+  document.getElementById("kpiSaidasSub").textContent = `${fmtInt(saidaRetorna)} retornam · ${fmtInt(saidaNaoRetorna)} não retornam`;
+  document.getElementById("kpiEntradas").textContent = fmtInt(totalEntrada) + " pallets";
+  document.getElementById("kpiEntradasSub").textContent = `${fmtInt(entradaCompra)} compra · ${fmtInt(entradaOutras)} retorno físico`;
+  document.getElementById("kpiNaoRetorna").textContent = fmtInt(saidaNaoRetorna) + " pallets";
+  document.getElementById("kpiNaoRetornaSub").textContent = `${fmtInt(destinoMap.size)} combinações de transportadora + estado`;
 
-/* ============================================================
-   ABA 2 — ESTOQUE
-   ============================================================ */
-
-function populateFiltroEstado(){
-  const sel = document.getElementById("filtroEstado");
-  const prevValue = sel.value;
-  sel.innerHTML = '<option value="">Todos</option>';
-  estadosComDados().forEach(e=>{
-    const opt = document.createElement("option");
-    opt.value = e.estado; opt.textContent = e.estado;
-    sel.appendChild(opt);
-  });
-  if(Array.from(sel.options).some(o=>o.value===prevValue)) sel.value = prevValue;
-}
-
-function renderEstoqueTable(){
-  const estadoF = document.getElementById("filtroEstado").value;
-  const qtdMinF = parseFloat(document.getElementById("filtroQtdMin").value) || 0;
-  const statusF = document.getElementById("filtroStatus").value;
-
-  const rows = STOCK.filter(r=>{
-    if(estadoF && r.estado !== estadoF) return false;
-    if(r.qtd < qtdMinF) return false;
-    const neg = getNeg(r.id);
-    if(statusF && neg.status !== statusF) return false;
-    return true;
-  }).sort((a,b)=> b.qtd - a.qtd);
-
-  const tbody = document.getElementById("estoqueTbody");
+  const destinos = Array.from(destinoMap.values()).sort((a,b)=> b.qtd - a.qtd);
+  const tbody = document.getElementById("destinoTbody");
   tbody.innerHTML = "";
-
-  let totalQtd = 0, totalValor = 0;
-
-  rows.forEach(r=>{
-    const neg = getNeg(r.id);
-    totalQtd += r.qtd;
-    totalValor += r.qtd * precoPadrao;
-
-    const tr = document.createElement("tr");
-
-    const tdT = document.createElement("td");
-    tdT.textContent = r.transportadora;
-    tr.appendChild(tdT);
-
-    const tdE = document.createElement("td");
-    tdE.textContent = r.estado;
-    tr.appendChild(tdE);
-
-    const tdQ = document.createElement("td");
-    tdQ.className = "num";
-    tdQ.textContent = fmtInt(r.qtd);
-    tr.appendChild(tdQ);
-
-    const tdV = document.createElement("td");
-    tdV.className = "num";
-    tdV.textContent = fmtMoney(r.qtd*precoPadrao);
-    tr.appendChild(tdV);
-
-    const tdD = document.createElement("td");
-    tdD.textContent = fmtDate(r.ultimaSaida);
-    tr.appendChild(tdD);
-
-    const tdS = document.createElement("td");
-    const sel = document.createElement("select");
-    sel.className = "status-select status-" + neg.status;
-    Object.keys(STATUS_LABEL).forEach(k=>{
-      const opt = document.createElement("option");
-      opt.value = k; opt.textContent = STATUS_LABEL[k];
-      if(k===neg.status) opt.selected = true;
-      sel.appendChild(opt);
-    });
-    sel.addEventListener("change", ()=>{
-      const novoStatus = sel.value;
-      if(novoStatus === "vendido"){
-        openModalVenda(r, sel);
-      } else {
-        setNeg(r.id, {status: novoStatus});
-        sel.className = "status-select status-" + novoStatus;
-        renderDashboard();
-      }
-    });
-    tdS.appendChild(sel);
-    tr.appendChild(tdS);
-
-    const tdO = document.createElement("td");
-    const obsInput = document.createElement("input");
-    obsInput.type = "text";
-    obsInput.className = "obs-input";
-    obsInput.placeholder = "observação...";
-    obsInput.value = neg.obs || "";
-    obsInput.addEventListener("change", ()=>{
-      setNeg(r.id, {obs: obsInput.value});
-    });
-    tdO.appendChild(obsInput);
-    tr.appendChild(tdO);
-
-    tbody.appendChild(tr);
-  });
-
-  document.getElementById("footTotalQtd").textContent = fmtInt(totalQtd);
-  document.getElementById("footTotalValor").textContent = fmtMoney(totalValor);
-  document.getElementById("filtroResumo").textContent = `${rows.length} registro(s) exibido(s)`;
-
-  if(rows.length===0){
-    const tr = document.createElement("tr");
-    const td = document.createElement("td");
-    td.colSpan = 7;
-    td.className = "empty-note";
-    td.textContent = "Nenhum registro encontrado com os filtros atuais.";
-    tr.appendChild(td);
-    tbody.appendChild(tr);
-  }
-}
-
-let modalRowRef = null;
-let modalSelectRef = null;
-
-function openModalVenda(row, selectEl){
-  modalRowRef = row;
-  modalSelectRef = selectEl;
-  const neg = getNeg(row.id);
-  document.getElementById("modalVendaInfo").textContent =
-    `${row.transportadora} — ${row.estado} (${fmtInt(row.qtd)} pallets disponíveis)`;
-  document.getElementById("modalQtd").value = neg.vendidoQtd > 0 ? neg.vendidoQtd : row.qtd;
-  document.getElementById("modalQtd").max = row.qtd;
-  document.getElementById("modalPreco").value = neg.vendidoPreco > 0 ? neg.vendidoPreco : precoPadrao;
-  document.getElementById("modalVenda").classList.add("open");
-}
-function closeModalVenda(revert){
-  document.getElementById("modalVenda").classList.remove("open");
-  if(revert && modalSelectRef){
-    const neg = getNeg(modalRowRef.id);
-    modalSelectRef.value = neg.status;
-    modalSelectRef.className = "status-select status-" + neg.status;
-  }
-  modalRowRef = null; modalSelectRef = null;
-}
-document.getElementById("btnCancelaVenda").addEventListener("click", ()=> closeModalVenda(true));
-document.getElementById("btnConfirmaVenda").addEventListener("click", ()=>{
-  const qtd = parseFloat(document.getElementById("modalQtd").value) || 0;
-  const preco = parseFloat(document.getElementById("modalPreco").value) || 0;
-  if(qtd<=0 || preco<=0){ alert("Informe quantidade e preço válidos."); return; }
-  setNeg(modalRowRef.id, {status:"vendido", vendidoQtd:qtd, vendidoPreco:preco});
-  if(modalSelectRef){
-    modalSelectRef.value = "vendido";
-    modalSelectRef.className = "status-select status-vendido";
-  }
-  document.getElementById("modalVenda").classList.remove("open");
-  modalRowRef = null; modalSelectRef = null;
-  renderDashboard();
-});
-
-document.getElementById("filtroEstado").addEventListener("change", renderEstoqueTable);
-document.getElementById("filtroQtdMin").addEventListener("input", renderEstoqueTable);
-document.getElementById("filtroStatus").addEventListener("change", renderEstoqueTable);
-document.getElementById("btnLimparFiltros").addEventListener("click", ()=>{
-  document.getElementById("filtroEstado").value = "";
-  document.getElementById("filtroQtdMin").value = 0;
-  document.getElementById("filtroStatus").value = "";
-  renderEstoqueTable();
-});
-
-document.getElementById("precoPadrao").value = precoPadrao;
-document.getElementById("precoPadrao").addEventListener("input", (e)=>{
-  const v = parseFloat(e.target.value);
-  precoPadrao = isNaN(v) ? 0 : v;
-  localStorage.setItem(LS_PRECO, String(precoPadrao));
-  renderEstoqueTable();
-  renderDashboard();
-  renderBusca();
-});
-
-/* ============================================================
-   ABA 3 — BUSCA DE COMPRADORES
-   ============================================================ */
-
-function populateEstadoBusca(){
-  const sel = document.getElementById("estadoBusca");
-  sel.innerHTML = "";
-  estadosComDados().forEach(e=>{
-    const opt = document.createElement("option");
-    opt.value = e.estado; opt.textContent = e.estado;
-    sel.appendChild(opt);
-  });
-}
-
-function renderBusca(){
-  const sel = document.getElementById("estadoBusca");
-  const estado = sel.value || estadosComDados()[0].estado;
-  const dado = estadosComDados().find(e=>e.estado===estado);
-  if(!dado) return;
-
-  document.getElementById("buscaQtd").textContent = fmtInt(dado.qtd) + " pallets";
-  document.getElementById("buscaValor").textContent = fmtMoney(dado.qtd*precoPadrao);
-
-  const cidade = CIDADE_PRINCIPAL[estado] || estado;
-  const queries = [
-    `compro pallets usados PBR ${estado}`,
-    `empresa compra pallets madeira ${estado}`,
-    `reciclagem pallets ${cidade}`,
-    `paleteiro compra pallets ${estado}`
-  ];
-
-  const list = document.getElementById("queryList");
-  list.innerHTML = "";
-  queries.forEach(q=>{
-    const item = document.createElement("div");
-    item.className = "query-item";
-    const code = document.createElement("code");
-    code.textContent = q;
-    const actions = document.createElement("div");
-    actions.className = "actions";
-
-    const btnCopy = document.createElement("button");
-    btnCopy.className = "btn btn-sm";
-    btnCopy.textContent = "Copiar";
-    btnCopy.addEventListener("click", ()=>{
-      navigator.clipboard.writeText(q).then(()=>{
-        btnCopy.textContent = "Copiado!";
-        setTimeout(()=> btnCopy.textContent = "Copiar", 1200);
-      }).catch(()=>{ alert("Não foi possível copiar automaticamente. Texto: "+q); });
-    });
-
-    const btnOpen = document.createElement("button");
-    btnOpen.className = "btn btn-sm btn-primary";
-    btnOpen.textContent = "Abrir no Google";
-    btnOpen.addEventListener("click", ()=>{
-      window.open("https://www.google.com/search?q=" + encodeURIComponent(q), "_blank", "noopener");
-    });
-
-    actions.appendChild(btnCopy);
-    actions.appendChild(btnOpen);
-    item.appendChild(code);
-    item.appendChild(actions);
-    list.appendChild(item);
-  });
-
-  renderContatos(estado);
-}
-
-function renderContatos(estado){
-  const listEl = document.getElementById("contatoList");
-  listEl.innerHTML = "";
-  const lista = contatos[estado] || [];
-  if(lista.length===0){
-    listEl.innerHTML = `<li class="empty-note" style="justify-content:center;">Nenhum contato anotado para ${estado} ainda.</li>`;
-    return;
-  }
-  lista.forEach((c, idx)=>{
-    const li = document.createElement("li");
-    const info = document.createElement("div");
-    info.className = "c-info";
-    info.innerHTML = `<b>${c.nome || "(sem nome)"}</b><span>${c.info || ""}</span>${c.obs ? `<div class="c-meta">${c.obs}</div>` : ""}<div class="c-meta">adicionado em ${fmtDate(c.data)}</div>`;
-    const btnDel = document.createElement("button");
-    btnDel.className = "btn btn-sm";
-    btnDel.textContent = "Remover";
-    btnDel.addEventListener("click", ()=>{
-      contatos[estado].splice(idx,1);
-      saveJSON(LS_CONTATOS, contatos);
-      renderContatos(estado);
-    });
-    li.appendChild(info);
-    li.appendChild(btnDel);
-    listEl.appendChild(li);
-  });
-}
-
-document.getElementById("estadoBusca").addEventListener("change", renderBusca);
-document.getElementById("btnAddContato").addEventListener("click", ()=>{
-  const estado = document.getElementById("estadoBusca").value;
-  const nome = document.getElementById("contatoNome").value.trim();
-  const info = document.getElementById("contatoInfo").value.trim();
-  const obs = document.getElementById("contatoObs").value.trim();
-  if(!nome && !info){ alert("Informe ao menos um nome ou contato."); return; }
-  if(!contatos[estado]) contatos[estado] = [];
-  const today = new Date().toISOString().slice(0,10);
-  contatos[estado].push({nome, info, obs, data: today});
-  saveJSON(LS_CONTATOS, contatos);
-  document.getElementById("contatoNome").value = "";
-  document.getElementById("contatoInfo").value = "";
-  document.getElementById("contatoObs").value = "";
-  renderContatos(estado);
-});
-
-/* ============================================================
-   ABA 4 — RESUMO MENSAL
-   ============================================================ */
-
-function renderResumo(){
-  const tbody = document.getElementById("resumoTbody");
-  tbody.innerHTML = "";
-  const filtrado = getFilteredMonthly();
-
-  const label = document.getElementById("resumoPeriodoLabel");
-  if(filtrado.length){
-    label.textContent = `${fmtMes(filtrado[0].mes)} a ${fmtMes(filtrado[filtrado.length-1].mes)} — ${labelPeriodo(periodoAtual)}`;
-  } else {
-    label.textContent = "Nenhum dado disponível.";
-  }
-
-  if(filtrado.length===0){
-    tbody.innerHTML = `<tr><td colspan="8" class="empty-note">Nenhum dado no período selecionado.</td></tr>`;
-    document.getElementById("resumoTfoot").innerHTML = "";
-    return;
-  }
-
-  let totS=0, totNR=0, totC=0, totRet=0, totCusto=0, totRecup=0;
-
-  filtrado.forEach(m=>{
-    const pctPerdida = m.saidas>0 ? (m.naoRetorna/m.saidas*100) : 0;
-    const custoPerda = m.naoRetorna * CUSTO_PERDA_PALLET;
-    const valorRecup = m.naoRetorna * VALOR_RECUPERAVEL_PALLET;
-
-    totS+=m.saidas; totNR+=m.naoRetorna; totC+=m.compras; totRet+=m.retornos;
-    totCusto+=custoPerda; totRecup+=valorRecup;
-
+  destinos.forEach(d=>{
+    const pct = saidaNaoRetorna>0 ? (d.qtd/saidaNaoRetorna*100) : 0;
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${fmtMes(m.mes)}</td>
-      <td class="num">${fmtInt(m.saidas)}</td>
-      <td class="num">${fmtInt(m.naoRetorna)}</td>
-      <td class="num">${pctPerdida.toFixed(1)}%</td>
-      <td class="num">${fmtInt(m.compras)}</td>
-      <td class="num">${fmtInt(m.retornos)}</td>
-      <td class="num">${fmtMoney(custoPerda)}</td>
-      <td class="num">${fmtMoney(valorRecup)}</td>
+      <td>${escapeHtml(d.transportadora)}</td>
+      <td>${escapeHtml(d.estado)}</td>
+      <td class="num">${fmtInt(d.qtd)}</td>
+      <td class="num">${pct.toFixed(1)}%</td>
+      <td>${fmtDate(d.ultimaSaida)}</td>
     `;
     tbody.appendChild(tr);
   });
+  if(destinos.length===0){
+    tbody.innerHTML = `<tr><td colspan="5" class="empty-note">Nenhum pallet não retornado no período selecionado.</td></tr>`;
+  }
+  document.getElementById("destinoTotalQtd").textContent = fmtInt(saidaNaoRetorna);
 
-  const pctTotal = totS>0 ? (totNR/totS*100) : 0;
-  document.getElementById("resumoTfoot").innerHTML = `
-    <tr>
-      <td>Total</td>
-      <td class="num">${fmtInt(totS)}</td>
-      <td class="num">${fmtInt(totNR)}</td>
-      <td class="num">${pctTotal.toFixed(1)}%</td>
-      <td class="num">${fmtInt(totC)}</td>
-      <td class="num">${fmtInt(totRet)}</td>
-      <td class="num">${fmtMoney(totCusto)}</td>
-      <td class="num">${fmtMoney(totRecup)}</td>
-    </tr>
-  `;
+  ultimoRelatorio = {destinos, de, ate};
 }
 
 document.getElementById("btnExportCsv").addEventListener("click", ()=>{
-  const header = ["Mes","Saidas","Nao Retorna","% Perdida","Compras (reposicao)","Retornos fisicos","Custo da perda (R$)","Valor recuperavel (R$)"];
+  const {destinos, de, ate} = ultimoRelatorio;
+  const header = ["Transportadora","Estado","Quantidade","Ultima saida no periodo"];
   const lines = [header.join(";")];
-  let totS=0, totNR=0, totC=0, totRet=0, totCusto=0, totRecup=0;
-  const filtrado = getFilteredMonthly();
-  filtrado.forEach(m=>{
-    const pct = m.saidas>0 ? (m.naoRetorna/m.saidas*100) : 0;
-    const custo = m.naoRetorna*CUSTO_PERDA_PALLET;
-    const recup = m.naoRetorna*VALOR_RECUPERAVEL_PALLET;
-    totS+=m.saidas; totNR+=m.naoRetorna; totC+=m.compras; totRet+=m.retornos; totCusto+=custo; totRecup+=recup;
-    lines.push([fmtMes(m.mes), m.saidas, m.naoRetorna, pct.toFixed(1)+"%", m.compras, m.retornos, custo.toFixed(2), recup.toFixed(2)].join(";"));
-  });
-  const pctTotal = totS>0 ? (totNR/totS*100) : 0;
-  lines.push(["Total", totS, totNR, pctTotal.toFixed(1)+"%", totC, totRet, totCusto.toFixed(2), totRecup.toFixed(2)].join(";"));
-
+  destinos.forEach(d=> lines.push([d.transportadora, d.estado, d.qtd, fmtDate(d.ultimaSaida)].join(";")));
   const csv = "﻿" + lines.join("\n");
   const blob = new Blob([csv], {type:"text/csv;charset=utf-8;"});
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "resumo_mensal_antoniazzi.csv";
+  a.download = `destino_pallets_nao_retornados_${de || "inicio"}_a_${ate || "fim"}.csv`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 });
-
-/* ============================================================
-   INIT
-   ============================================================ */
-
-function fullRerender(){
-  populateFiltroEstado();
-  populateEstadoBusca();
-  renderDashboard();
-  renderEstoqueTable();
-  renderBusca();
-  renderResumo();
-}
-
-function init(){
-  loadData();
-  document.getElementById("periodoFiltroChart").value = periodoAtual;
-  document.getElementById("periodoFiltroResumo").value = periodoAtual;
-  renderImportStatusAtual();
-  fullRerender();
-}
-init();
 
 })();
 </script>
