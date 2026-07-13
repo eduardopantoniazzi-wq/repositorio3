@@ -1,0 +1,204 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Core reference data
+// ---------------------------------------------------------------------------
+
+// A physical plant / warehouse location (Santa Maria, Canoas, ...).
+// New units can be added later without any schema change.
+model Unit {
+  id        String   @id @default(cuid())
+  code      String   @unique // e.g. "SM", "CS"
+  name      String // e.g. "Santa Maria/RS"
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  skus  Sku[]
+  users User[]
+
+  @@map("units")
+}
+
+model Supplier {
+  id          String   @id @default(cuid())
+  name        String
+  contactName String?
+  phone       String?
+  email       String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  skus      Sku[]
+  movements Movement[]
+
+  @@map("suppliers")
+}
+
+enum Role {
+  ADMIN
+  ESTOQUISTA
+  OPERADOR_ENVASE
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role
+  // Null for ADMIN (sees every unit). Required for ESTOQUISTA / OPERADOR_ENVASE.
+  unitId       String?
+  unit         Unit?    @relation(fields: [unitId], references: [id])
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  movements    Movement[]
+  cycleCounts  CycleCount[] @relation("CountedBy")
+  reviewedCounts CycleCount[] @relation("ReviewedBy")
+
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// Packaging SKU catalog
+// ---------------------------------------------------------------------------
+
+enum SkuClass {
+  A
+  B
+  C
+}
+
+// A packaging SKU is scoped to a single Unit, because physical stock is kept
+// separately per plant. The same packaging item at a second unit is a
+// different Sku row (same internalCode allowed, enforced unique per unit).
+model Sku {
+  id                String   @id @default(cuid())
+  internalCode      String
+  description       String
+  unitOfMeasure     String // e.g. "UN", "KG", "ROLO"
+  classification    SkuClass @default(C)
+  unitCost          Float? // R$ per unit, used for "valor imobilizado"
+  defaultLeadTimeDays Int?
+
+  unitId            String
+  unit              Unit     @relation(fields: [unitId], references: [id])
+
+  primarySupplierId String?
+  primarySupplier   Supplier? @relation(fields: [primarySupplierId], references: [id])
+
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  movements   Movement[]
+  cycleCounts CycleCount[]
+
+  @@unique([unitId, internalCode])
+  @@map("skus")
+}
+
+// ---------------------------------------------------------------------------
+// Stock movements (single source of truth for balance)
+// ---------------------------------------------------------------------------
+
+enum MovementType {
+  ENTRADA
+  SAIDA
+}
+
+model Movement {
+  id     String       @id @default(cuid())
+  type   MovementType
+  skuId  String
+  sku    Sku          @relation(fields: [skuId], references: [id])
+  quantity Float
+
+  // When the physical event happened (receiving / withdrawal).
+  occurredAt DateTime @default(now())
+  // When it was recorded in the system (audit trail).
+  createdAt  DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  // ENTRADA-only fields
+  supplierId    String?
+  supplier      Supplier? @relation(fields: [supplierId], references: [id])
+  invoiceNumber String?
+
+  // SAIDA-only fields
+  destinationLine  String?
+  productionOrder  String?
+
+  notes String?
+
+  @@index([skuId])
+  @@index([type])
+  @@index([occurredAt])
+  @@map("movements")
+}
+
+// ---------------------------------------------------------------------------
+// Cycle counting (validation, not primary control)
+// ---------------------------------------------------------------------------
+
+enum CycleCountStatus {
+  PENDING_REVIEW
+  REVIEWED_OK
+  REVIEWED_ADJUSTED
+}
+
+model CycleCount {
+  id                    String           @id @default(cuid())
+  skuId                 String
+  sku                   Sku              @relation(fields: [skuId], references: [id])
+
+  countedQuantity       Float
+  // Snapshot of the system-calculated balance at the moment of the count.
+  systemQuantityAtCount Float
+  divergenceQty         Float
+  divergencePercent     Float
+
+  countedById String
+  countedBy   User   @relation("CountedBy", fields: [countedById], references: [id])
+  countedAt   DateTime @default(now())
+
+  status         CycleCountStatus @default(PENDING_REVIEW)
+  reviewedById   String?
+  reviewedBy     User?            @relation("ReviewedBy", fields: [reviewedById], references: [id])
+  reviewNotes    String?
+  reviewedAt     DateTime?
+
+  // Adjustment movement created if a reviewer decides to reconcile the
+  // system balance to the physical count (creates a Movement, never edits
+  // one directly).
+  adjustmentMovementId String?
+
+  createdAt DateTime @default(now())
+
+  @@index([skuId])
+  @@index([status])
+  @@map("cycle_counts")
+}
+
+// ---------------------------------------------------------------------------
+// App-wide configuration (singleton row)
+// ---------------------------------------------------------------------------
+
+model Setting {
+  id                         Int   @id @default(1)
+  divergenceThresholdPercent Float @default(5)
+
+  @@map("settings")
+}
