@@ -4,6 +4,8 @@ import * as z from "zod";
 import { revalidatePath } from "next/cache";
 import { requireRole, requireUser } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
+import { DESTINATION_LINES } from "@/lib/destination-lines";
 
 async function assertSkuInUserScope(skuId: string, userUnitId: string | null, isAdmin: boolean) {
   const sku = await prisma.sku.findUnique({ where: { id: skuId } });
@@ -12,6 +14,18 @@ async function assertSkuInUserScope(skuId: string, userUnitId: string | null, is
     throw new Error("SKU não pertence à sua unidade.");
   }
   return sku;
+}
+
+// requireRole() already re-checks the session against the database, so a
+// stale/foreign-key error here means something changed between that check
+// and this write (a SKU or supplier removed by someone else in the same
+// instant). Surface it as a message the user can act on instead of the
+// generic error boundary.
+function friendlyWriteError(e: unknown): string {
+  if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2003") {
+    return "Não foi possível salvar: o SKU ou fornecedor selecionado não existe mais (pode ter sido removido por outra pessoa). Atualize a página e tente novamente.";
+  }
+  throw e;
 }
 
 // ---------------------------------------------------------------------------
@@ -63,18 +77,22 @@ export async function registerEntrada(
     supplierId = supplier.id;
   }
 
-  await prisma.movement.create({
-    data: {
-      type: "ENTRADA",
-      skuId: data.skuId,
-      quantity: data.quantity,
-      occurredAt: new Date(`${data.receivedDate}T12:00:00`),
-      userId: user.userId,
-      supplierId,
-      invoiceNumber: data.invoiceNumber,
-      notes: data.notes || null,
-    },
-  });
+  try {
+    await prisma.movement.create({
+      data: {
+        type: "ENTRADA",
+        skuId: data.skuId,
+        quantity: data.quantity,
+        occurredAt: new Date(`${data.receivedDate}T12:00:00`),
+        userId: user.userId,
+        supplierId,
+        invoiceNumber: data.invoiceNumber,
+        notes: data.notes || null,
+      },
+    });
+  } catch (e) {
+    return { error: friendlyWriteError(e) };
+  }
 
   revalidatePath("/saldo");
   revalidatePath("/entradas");
@@ -89,7 +107,7 @@ export async function registerEntrada(
 const SaidaSchema = z.object({
   skuId: z.string().min(1, { error: "Selecione um SKU." }),
   quantity: z.coerce.number().positive({ error: "Informe uma quantidade maior que zero." }),
-  destinationLine: z.string().trim().min(1, { error: "Informe a linha/produto de destino." }),
+  destinationLine: z.enum(DESTINATION_LINES, { error: "Selecione uma linha de destino válida." }),
   productionOrder: z.string().trim().optional(),
 });
 
@@ -119,17 +137,21 @@ export async function registerSaida(
     return { error: e instanceof Error ? e.message : "SKU inválido." };
   }
 
-  await prisma.movement.create({
-    data: {
-      type: "SAIDA",
-      skuId: data.skuId,
-      quantity: data.quantity,
-      occurredAt: new Date(),
-      userId: user.userId,
-      destinationLine: data.destinationLine,
-      productionOrder: data.productionOrder || null,
-    },
-  });
+  try {
+    await prisma.movement.create({
+      data: {
+        type: "SAIDA",
+        skuId: data.skuId,
+        quantity: data.quantity,
+        occurredAt: new Date(),
+        userId: user.userId,
+        destinationLine: data.destinationLine,
+        productionOrder: data.productionOrder || null,
+      },
+    });
+  } catch (e) {
+    return { error: friendlyWriteError(e) };
+  }
 
   revalidatePath("/saldo");
   revalidatePath("/saidas");

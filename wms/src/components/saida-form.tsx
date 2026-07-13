@@ -3,16 +3,11 @@
 import { useActionState, useState } from "react";
 import { SkuPicker } from "@/components/sku-picker";
 import { registerSaida, type SaidaFormState } from "@/lib/actions/movements";
+import { DESTINATION_LINES } from "@/lib/destination-lines";
 
 // The most-used, must-not-skip screen in the app: minimal fields, big
 // touch targets, auto-resets after each submit so an operator can log a
 // whole shift's withdrawals back-to-back in a few seconds each.
-const COMMON_DESTINATION_LINES = [
-  "Envase Farinha 25kg",
-  "Envase Farinha 10kg",
-  "Envase Farinha Integral",
-  "Envase Farelo - Big Bag",
-];
 
 export function SaidaForm({ unitId }: { unitId: string }) {
   const [state, formAction, pending] = useActionState<SaidaFormState, FormData>(
@@ -57,18 +52,21 @@ export function SaidaForm({ unitId }: { unitId: string }) {
 
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">Linha / produto de destino</label>
-          <input
+          <select
             name="destinationLine"
             required
-            list="destination-lines"
-            placeholder="Ex: Envase Farinha 25kg"
+            defaultValue=""
             className="w-full rounded-lg border border-slate-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-          />
-          <datalist id="destination-lines">
-            {COMMON_DESTINATION_LINES.map((line) => (
-              <option key={line} value={line} />
+          >
+            <option value="" disabled>
+              Selecione...
+            </option>
+            {DESTINATION_LINES.map((line) => (
+              <option key={line} value={line}>
+                {line}
+              </option>
             ))}
-          </datalist>
+          </select>
         </div>
 
         <div>

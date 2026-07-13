@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { getBalanceForSku } from "@/lib/balance";
+import { Prisma } from "@/generated/prisma/client";
 
 const CycleCountSchema = z.object({
   skuId: z.string().min(1, { error: "Selecione um SKU." }),
@@ -48,24 +49,33 @@ export async function registerCycleCount(
   const threshold = setting?.divergenceThresholdPercent ?? 5;
   const withinTolerance = divergencePercent < threshold;
 
-  await prisma.cycleCount.create({
-    data: {
-      skuId,
-      countedQuantity,
-      systemQuantityAtCount,
-      divergenceQty,
-      divergencePercent,
-      countedById: user.userId,
-      status: withinTolerance ? "REVIEWED_OK" : "PENDING_REVIEW",
-      ...(withinTolerance
-        ? {
-            reviewedById: user.userId,
-            reviewedAt: new Date(),
-            reviewNotes: "Dentro da tolerância configurada — sem necessidade de revisão.",
-          }
-        : {}),
-    },
-  });
+  try {
+    await prisma.cycleCount.create({
+      data: {
+        skuId,
+        countedQuantity,
+        systemQuantityAtCount,
+        divergenceQty,
+        divergencePercent,
+        countedById: user.userId,
+        status: withinTolerance ? "REVIEWED_OK" : "PENDING_REVIEW",
+        ...(withinTolerance
+          ? {
+              reviewedById: user.userId,
+              reviewedAt: new Date(),
+              reviewNotes: "Dentro da tolerância configurada — sem necessidade de revisão.",
+            }
+          : {}),
+      },
+    });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2003") {
+      return {
+        error: "Não foi possível salvar: o SKU selecionado não existe mais. Atualize a página e tente novamente.",
+      };
+    }
+    throw e;
+  }
 
   revalidatePath("/contagens");
   revalidatePath("/dashboard");
