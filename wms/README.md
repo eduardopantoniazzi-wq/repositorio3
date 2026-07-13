@@ -20,19 +20,23 @@ nunca digitado manualmente.
 - **Next.js 16** (App Router, Server Actions) + **React 19** + TypeScript
 - **Tailwind CSS 4** — interface responsiva, pensada para tablet/celular no
   chão de fábrica (poucos campos por tela, botões grandes)
-- **Prisma 7** + **SQLite** (via `better-sqlite3` driver adapter) — banco
-  persistente em arquivo, adequado para o piloto. Migrar para Postgres é uma
-  troca de `datasource provider` no `prisma/schema.prisma` + `DATABASE_URL`;
-  o restante do código não muda (ver [Migração para Postgres](#migração-para-postgres)).
+- **Prisma 7** + **PostgreSQL** (via `@prisma/adapter-pg`). O protótipo
+  começou em SQLite em arquivo, mas isso causou perda de dados real em
+  produção: discos de nuvem compartilhados (como o volume do Railway) não
+  são confiáveis para SQLite entre reinícios/deploys. Postgres é a única
+  opção usada a partir daqui — ver [Por que Postgres, não SQLite](#por-que-postgres-e-não-sqlite).
 - Autenticação por sessão em cookie assinado (JWT via `jose`), sem
   dependência externa
 
 ## Rodando localmente
 
+Requer um Postgres rodando (local, Docker, ou um serviço gerenciado —
+Railway/Neon/Supabase todos funcionam).
+
 ```bash
 npm install
-cp .env.example .env        # ajuste SESSION_SECRET em produção
-npx prisma migrate deploy   # cria o banco SQLite e aplica o schema
+cp .env.example .env        # ajuste DATABASE_URL e SESSION_SECRET
+npx prisma migrate deploy   # aplica o schema no Postgres
 npx prisma db seed          # cria unidade Santa Maria + SKUs classe A + usuários piloto
 npm run dev
 ```
@@ -105,17 +109,18 @@ negócio é necessária.
 (`/api/export/saldo`, `/api/export/movements`) para cruzamento com a
 planilha atual durante o período de transição.
 
-## Migração para Postgres
+## Por que Postgres, e não SQLite
 
-O schema já foi desenhado para múltiplas unidades e não usa nenhum recurso
-específico do SQLite. Para migrar:
-
-1. Trocar `provider = "sqlite"` por `provider = "postgresql"` em
-   `prisma/schema.prisma`.
-2. Trocar o driver adapter em `src/lib/prisma.ts` (e `prisma/seed.ts`) de
-   `@prisma/adapter-better-sqlite3` para `@prisma/adapter-pg` (ou equivalente).
-3. Apontar `DATABASE_URL` para o Postgres de destino e rodar
-   `npx prisma migrate deploy`.
+O plano original era rodar o piloto em SQLite (arquivo local), migrando
+para Postgres só se o piloto validasse — é um padrão comum para protótipos.
+Na prática, ao publicar o piloto no Railway com o banco em um volume
+persistente, uma reinicialização do container resetou o arquivo SQLite e
+apagou os SKUs cadastrados pelo usuário (os dados do seed, sendo recriados
+por `upsert`, voltaram; os dados reais não). A causa mais provável é que
+volumes de nuvem compartilhados não garantem as mesmas semânticas de
+arquivo/lock que o SQLite espera, especialmente entre deploys. Por isso o
+projeto migrou para Postgres antes mesmo do piloto validar — a
+confiabilidade dos dados não é negociável, mesmo em fase de teste.
 
 ## Escopo do piloto
 
