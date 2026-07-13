@@ -82,6 +82,88 @@ export async function createSku(_prevState: SkuFormState, formData: FormData): P
 }
 
 // ---------------------------------------------------------------------------
+// Edit — correct or complete a SKU's data (most commonly: fill in the unit
+// cost after the fact, since bulk imports often don't have it yet).
+// Internal code, description, unit, classification, supplier, lead time and
+// cost can all change; the unit (Santa Maria/Canoas) cannot — moving a SKU
+// between units would silently reset its balance history.
+// ---------------------------------------------------------------------------
+
+const SkuEditSchema = z.object({
+  internalCode: z.string().trim().min(1, { error: "Informe o código interno." }),
+  description: z.string().trim().min(3, { error: "Descrição muito curta." }),
+  unitOfMeasure: z.string().trim().min(1, { error: "Informe a unidade de medida." }),
+  classification: z.enum(["A", "B", "C"]),
+  unitCost: z.coerce.number().nonnegative().optional().nullable(),
+  defaultLeadTimeDays: z.coerce.number().int().nonnegative().optional().nullable(),
+  primarySupplierId: z.string().optional().nullable(),
+  newSupplierName: z.string().trim().optional(),
+});
+
+export async function updateSku(_prevState: SkuFormState, formData: FormData): Promise<SkuFormState> {
+  const user = await requireRole("ADMIN", "ESTOQUISTA");
+
+  const skuId = formData.get("skuId");
+  if (typeof skuId !== "string" || !skuId) return { error: "SKU inválido." };
+
+  const existingSku = await prisma.sku.findUnique({ where: { id: skuId } });
+  if (!existingSku) return { error: "SKU não encontrado." };
+  if (user.role !== "ADMIN" && user.unitId !== existingSku.unitId) {
+    return { error: "Você não tem permissão para editar este SKU." };
+  }
+
+  const parsed = SkuEditSchema.safeParse({
+    internalCode: formData.get("internalCode"),
+    description: formData.get("description"),
+    unitOfMeasure: formData.get("unitOfMeasure"),
+    classification: formData.get("classification"),
+    unitCost: formData.get("unitCost") || undefined,
+    defaultLeadTimeDays: formData.get("defaultLeadTimeDays") || undefined,
+    primarySupplierId: formData.get("primarySupplierId") || undefined,
+    newSupplierName: formData.get("newSupplierName") || undefined,
+  });
+
+  if (!parsed.success) {
+    return { error: "Verifique os campos destacados.", fieldErrors: z.flattenError(parsed.error).fieldErrors as Record<string, string[]> };
+  }
+  const data = parsed.data;
+
+  const codeConflict = await prisma.sku.findUnique({
+    where: { unitId_internalCode: { unitId: existingSku.unitId, internalCode: data.internalCode } },
+  });
+  if (codeConflict && codeConflict.id !== skuId) {
+    return {
+      error: `Já existe um SKU com o código "${data.internalCode}" nesta unidade.`,
+      fieldErrors: { internalCode: ["Código já utilizado nesta unidade."] },
+    };
+  }
+
+  let supplierId = data.primarySupplierId || null;
+  if (!supplierId && data.newSupplierName) {
+    const supplier = await prisma.supplier.create({ data: { name: data.newSupplierName } });
+    supplierId = supplier.id;
+  }
+
+  await prisma.sku.update({
+    where: { id: skuId },
+    data: {
+      internalCode: data.internalCode,
+      description: data.description,
+      unitOfMeasure: data.unitOfMeasure,
+      classification: data.classification,
+      unitCost: data.unitCost ?? null,
+      defaultLeadTimeDays: data.defaultLeadTimeDays ?? null,
+      primarySupplierId: supplierId,
+    },
+  });
+
+  revalidatePath("/skus");
+  revalidatePath("/saldo");
+  revalidatePath(`/skus/${skuId}`);
+  redirect(`/skus/${skuId}`);
+}
+
+// ---------------------------------------------------------------------------
 // Bulk import — paste a list straight from the existing spreadsheet to
 // seed the catalog quickly instead of adding SKUs one by one.
 // ---------------------------------------------------------------------------

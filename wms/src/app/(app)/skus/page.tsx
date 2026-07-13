@@ -99,16 +99,21 @@ export default async function SkusPage({
                   </span>
                 </td>
                 <td className="px-4 py-3">
-                  {sku.active ? (
-                    <RemoveSkuButton skuId={sku.id} description={sku.description} />
-                  ) : (
-                    <form action={reactivateSku}>
-                      <input type="hidden" name="skuId" value={sku.id} />
-                      <button type="submit" className="text-sm font-medium text-blue-600 hover:underline">
-                        Reativar
-                      </button>
-                    </form>
-                  )}
+                  <div className="flex items-center gap-3">
+                    <Link href={`/skus/${sku.id}/editar`} className="text-sm font-medium text-blue-600 hover:underline">
+                      Editar
+                    </Link>
+                    {sku.active ? (
+                      <RemoveSkuButton skuId={sku.id} description={sku.description} />
+                    ) : (
+                      <form action={reactivateSku}>
+                        <input type="hidden" name="skuId" value={sku.id} />
+                        <button type="submit" className="text-sm font-medium text-blue-600 hover:underline">
+                          Reativar
+                        </button>
+                      </form>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}

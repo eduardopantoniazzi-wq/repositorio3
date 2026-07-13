@@ -36,8 +36,13 @@ export default async function SkuDetailPage({ params }: { params: Promise<{ id: 
           <h1 className="text-lg font-semibold text-slate-900">{sku.description}</h1>
         </div>
         <div className="flex items-center gap-4">
-          {(user.role === "ADMIN" || user.role === "ESTOQUISTA") && sku.active && (
-            <RemoveSkuButton skuId={sku.id} description={sku.description} />
+          {(user.role === "ADMIN" || user.role === "ESTOQUISTA") && (
+            <>
+              <Link href={`/skus/${sku.id}/editar`} className="text-sm font-medium text-blue-600 hover:underline">
+                Editar
+              </Link>
+              {sku.active && <RemoveSkuButton skuId={sku.id} description={sku.description} />}
+            </>
           )}
           <Link href="/skus" className="text-sm text-blue-600 hover:underline">
             Voltar
