@@ -30,14 +30,22 @@ export default async function SkusPage({
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-lg font-semibold text-slate-900">SKUs de embalagem</h1>
-        <Link
-          href="/skus/novo"
-          className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
-        >
-          + Novo SKU
-        </Link>
+        <div className="flex gap-2">
+          <Link
+            href="/skus/importar"
+            className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Importar lista
+          </Link>
+          <Link
+            href="/skus/novo"
+            className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            + Novo SKU
+          </Link>
+        </div>
       </div>
 
       <form className="mb-4">
