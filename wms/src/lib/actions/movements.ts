@@ -5,7 +5,6 @@ import { revalidatePath } from "next/cache";
 import { requireRole, requireUser } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
-import { DESTINATION_LINES } from "@/lib/destination-lines";
 
 async function assertSkuInUserScope(skuId: string, userUnitId: string | null, isAdmin: boolean) {
   const sku = await prisma.sku.findUnique({ where: { id: skuId } });
@@ -107,7 +106,7 @@ export async function registerEntrada(
 const SaidaSchema = z.object({
   skuId: z.string().min(1, { error: "Selecione um SKU." }),
   quantity: z.coerce.number().positive({ error: "Informe uma quantidade maior que zero." }),
-  destinationLine: z.enum(DESTINATION_LINES, { error: "Selecione uma linha de destino válida." }),
+  occurredDate: z.string().min(1, { error: "Informe a data." }),
   productionOrder: z.string().trim().optional(),
 });
 
@@ -122,7 +121,7 @@ export async function registerSaida(
   const parsed = SaidaSchema.safeParse({
     skuId: formData.get("skuId"),
     quantity: formData.get("quantity"),
-    destinationLine: formData.get("destinationLine"),
+    occurredDate: formData.get("occurredDate"),
     productionOrder: formData.get("productionOrder") || undefined,
   });
 
@@ -143,9 +142,8 @@ export async function registerSaida(
         type: "SAIDA",
         skuId: data.skuId,
         quantity: data.quantity,
-        occurredAt: new Date(),
+        occurredAt: new Date(`${data.occurredDate}T12:00:00`),
         userId: user.userId,
-        destinationLine: data.destinationLine,
         productionOrder: data.productionOrder || null,
       },
     });
