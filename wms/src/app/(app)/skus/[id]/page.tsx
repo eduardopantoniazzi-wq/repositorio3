@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { getBalanceForSku } from "@/lib/balance";
+import { RemoveSkuButton } from "@/components/remove-sku-button";
 
 const MOVEMENT_TYPE_LABEL: Record<string, string> = { ENTRADA: "Entrada", SAIDA: "Saída" };
 
@@ -34,9 +35,14 @@ export default async function SkuDetailPage({ params }: { params: Promise<{ id: 
           <p className="text-xs font-mono text-slate-500">{sku.internalCode}</p>
           <h1 className="text-lg font-semibold text-slate-900">{sku.description}</h1>
         </div>
-        <Link href="/skus" className="text-sm text-blue-600 hover:underline">
-          Voltar
-        </Link>
+        <div className="flex items-center gap-4">
+          {(user.role === "ADMIN" || user.role === "ESTOQUISTA") && sku.active && (
+            <RemoveSkuButton skuId={sku.id} description={sku.description} />
+          )}
+          <Link href="/skus" className="text-sm text-blue-600 hover:underline">
+            Voltar
+          </Link>
+        </div>
       </div>
 
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">

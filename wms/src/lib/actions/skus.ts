@@ -179,3 +179,48 @@ export async function bulkImportSkus(
   revalidatePath("/saldo");
   return { created, skipped };
 }
+
+// ---------------------------------------------------------------------------
+// Remove / deactivate — used to clear out demo/example SKUs or ones that
+// turned out to be wrong. A SKU with no movement or cycle-count history is
+// safe to delete outright; one with history is deactivated instead so the
+// audit trail (who moved what, when) is never lost.
+// ---------------------------------------------------------------------------
+
+export async function removeSku(formData: FormData) {
+  const user = await requireRole("ADMIN", "ESTOQUISTA");
+  const skuId = formData.get("skuId");
+  if (typeof skuId !== "string" || !skuId) return;
+
+  const sku = await prisma.sku.findUnique({ where: { id: skuId } });
+  if (!sku) return;
+  if (user.role !== "ADMIN" && sku.unitId !== user.unitId) return;
+
+  const [movementCount, cycleCountCount] = await Promise.all([
+    prisma.movement.count({ where: { skuId } }),
+    prisma.cycleCount.count({ where: { skuId } }),
+  ]);
+
+  if (movementCount === 0 && cycleCountCount === 0) {
+    await prisma.sku.delete({ where: { id: skuId } });
+  } else {
+    await prisma.sku.update({ where: { id: skuId }, data: { active: false } });
+  }
+
+  revalidatePath("/skus");
+  revalidatePath("/saldo");
+}
+
+export async function reactivateSku(formData: FormData) {
+  const user = await requireRole("ADMIN", "ESTOQUISTA");
+  const skuId = formData.get("skuId");
+  if (typeof skuId !== "string" || !skuId) return;
+
+  const sku = await prisma.sku.findUnique({ where: { id: skuId } });
+  if (!sku) return;
+  if (user.role !== "ADMIN" && sku.unitId !== user.unitId) return;
+
+  await prisma.sku.update({ where: { id: skuId }, data: { active: true } });
+  revalidatePath("/skus");
+  revalidatePath("/saldo");
+}
